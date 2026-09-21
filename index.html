@@ -1,0 +1,1526 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Listen and Spell: Grammar Practice</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+        }
+        /* Simple shake animation for incorrect answers */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        .animate-shake {
+            animation: shake 0.5s ease-in-out;
+        }
+    </style>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+
+    <!-- Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Application Code -->
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // --- ENUMS & TYPES (as JS Objects) ---
+        const GameState = {
+            START: 'start',
+            TOPIC_SELECTION: 'topicSelection',
+            GAME: 'game',
+            CONGRATS: 'congrats',
+            REVIEW_ERRORS: 'review',
+        };
+
+        // --- CONSTANTS ---
+        const TOPICS = {
+            "Cụm động từ (Phrasal Verbs)": [
+                { en: "She looks after her little brother every evening.", vi: "Cô ấy chăm em trai mình mỗi tối.", emoji: "👶" },
+                { en: "My grandmother looks after the garden when we're away.", vi: "Bà tôi chăm khu vườn khi chúng tôi đi vắng.", emoji: "👵" },
+                { en: "Can you look after my cat for two days?", vi: "Bạn có thể trông con mèo của tôi hai ngày không?", emoji: "🐈" },
+                { en: "He always looks after his health carefully.", vi: "Anh ấy luôn quan tâm đến sức khỏe của mình.", emoji: "❤️" },
+                { en: "The nurse looks after the old patients.", vi: "Cô y tá chăm sóc những bệnh nhân già.", emoji: "👩‍⚕️" },
+                { en: "Let's put the coffee table in the middle of the room.", vi: "Hãy đặt bàn cà phê ở giữa phòng nhé.", emoji: "☕" },
+                { en: "She put her bag in the middle of the bed.", vi: "Cô ấy đặt túi ở giữa giường.", emoji: "🛌" },
+                { en: "The teacher put a big box in the middle of the classroom.", vi: "Cô giáo đặt một chiếc hộp lớn giữa lớp học.", emoji: "📦" },
+                { en: "We put the cake in the middle of the table.", vi: "Chúng tôi đặt chiếc bánh ở giữa bàn.", emoji: "🎂" },
+                { en: "He put his chair in the middle of the hall.", vi: "Anh ấy đặt ghế của mình ở giữa hội trường.", emoji: "🪑" },
+                { en: "Look at the board, please.", vi: "Làm ơn nhìn lên bảng.", emoji: "칠" },
+                { en: "They looked at the stars last night.", vi: "Họ ngắm sao tối qua.", emoji: "⭐" },
+                { en: "Don't look at your phone while driving.", vi: "Đừng nhìn vào điện thoại khi đang lái xe.", emoji: "📱" },
+                { en: "She looked at herself in the mirror.", vi: "Cô ấy nhìn mình trong gương.", emoji: "🪞" },
+                { en: "The teacher looked at me and smiled.", vi: "Cô giáo nhìn tôi và mỉm cười.", emoji: "😊" },
+                { en: "We often go out for a walk after dinner.", vi: "Chúng tôi thường đi dạo sau bữa tối.", emoji: "🚶" },
+                { en: "Let's go out for a walk this morning.", vi: "Hãy ra ngoài đi dạo sáng nay nhé.", emoji: "☀️" },
+                { en: "My parents go out for a walk every weekend.", vi: "Bố mẹ tôi đi dạo mỗi cuối tuần.", emoji: "👨‍👩‍👧" },
+                { en: "When the weather is fine, they go out for a walk.", vi: "Khi thời tiết đẹp, họ ra ngoài đi dạo.", emoji: "👍" },
+                { en: "He went out for a walk with his dog yesterday.", vi: "Hôm qua anh ấy đi dạo cùng chú chó của mình.", emoji: "🐕" },
+                { en: "Don't worry, I can take care of myself.", vi: "Đừng lo, con có thể tự chăm sóc bản thân.", emoji: "💪" },
+                { en: "She takes care of her grandmother every day.", vi: "Cô ấy chăm sóc bà của mình mỗi ngày.", emoji: "👵" },
+                { en: "Please take care of this plant for me.", vi: "Làm ơn chăm cây này giúp tôi.", emoji: "🌱" },
+                { en: "He always takes care of his car carefully.", vi: "Anh ấy luôn chăm sóc chiếc xe rất kỹ.", emoji: "🚗" },
+                { en: "Teachers take care of students at school.", vi: "Giáo viên chăm lo cho học sinh ở trường.", emoji: "🧑‍🏫" },
+                { en: "Please drop in for a cup of coffee whenever you are passing.", vi: "Hãy ghé uống cà phê bất cứ khi nào bạn đi ngang qua.", emoji: "☕" },
+                { en: "She dropped in to see me yesterday.", vi: "Cô ấy ghé thăm tôi hôm qua.", emoji: "👋" },
+                { en: "Can I drop in this afternoon?", vi: "Tôi có thể ghé qua chiều nay được không?", emoji: "🤔" },
+                { en: "My uncle sometimes drops in on us at weekends.", vi: "Chú tôi đôi khi ghé thăm chúng tôi vào cuối tuần.", emoji: "👨" },
+                { en: "Don't forget to drop in if you have time.", vi: "Đừng quên ghé qua nếu bạn có thời gian.", emoji: "👍" },
+                { en: "I'm looking forward to meeting you again.", vi: "Tôi rất mong được gặp lại bạn.", emoji: "😊" },
+                { en: "She's looking forward to going on vacation.", vi: "Cô ấy háo hức đi nghỉ mát.", emoji: "🏖️" },
+                { en: "They look forward to having lunch with us.", vi: "Họ mong được ăn trưa cùng chúng tôi.", emoji: "🍱" },
+                { en: "We're looking forward to hearing good news.", vi: "Chúng tôi mong nhận được tin vui.", emoji: "📰" },
+                { en: "He looks forward to joining the new club.", vi: "Anh ấy háo hức tham gia câu lạc bộ mới.", emoji: "🎉" },
+                { en: "Children have to work harder when they grow up.", vi: "Trẻ em phải làm việc chăm chỉ hơn khi trưởng thành.", emoji: "🧒" },
+                { en: "I want to be a teacher when I grow up.", vi: "Tôi muốn trở thành giáo viên khi lớn lên.", emoji: "🧑‍🏫" },
+                { en: "He grew up in a small village.", vi: "Anh ấy lớn lên ở một ngôi làng nhỏ.", emoji: "🏡" },
+                { en: "They grew up together and became best friends.", vi: "Họ lớn lên cùng nhau và trở thành bạn thân.", emoji: "🧑‍🤝‍🧑" },
+                { en: "My brother wants to travel when he grows up.", vi: "Anh trai tôi muốn đi du lịch khi lớn lên.", emoji: "✈️" },
+            ],
+            "Thì Hiện Tại Đơn (S + V/Vs; don't/doesn't + V)": [
+                { en: "She lives in a small house near the park.", vi: "Cô ấy sống trong một ngôi nhà nhỏ gần công viên.", emoji: "🏡" },
+                { en: "He drinks a lot of water every day.", vi: "Anh ấy uống nhiều nước mỗi ngày.", emoji: "💧" },
+                { en: "I go to school by bike.", vi: "Tôi đi học bằng xe đạp.", emoji: "🚲" },
+                { en: "They play football every weekend.", vi: "Họ chơi bóng đá mỗi cuối tuần.", emoji: "⚽" },
+                { en: "My father works in a hospital.", vi: "Bố tôi làm việc trong bệnh viện.", emoji: "🏥" },
+                { en: "We study English every morning.", vi: "Chúng tôi học tiếng Anh mỗi buổi sáng.", emoji: "📚" },
+                { en: "The sun rises in the east.", vi: "Mặt trời mọc ở phía đông.", emoji: "☀️" },
+                { en: "My sister likes cats.", vi: "Em gái tôi thích mèo.", emoji: "🐈" },
+                { en: "He often reads books before bed.", vi: "Anh ấy thường đọc sách trước khi ngủ.", emoji: "📖" },
+                { en: "Our teacher teaches us English.", vi: "Cô giáo của chúng tôi dạy tiếng Anh.", emoji: "👩‍🏫" },
+                { en: "She doesn't like coffee.", vi: "Cô ấy không thích cà phê.", emoji: "☕" },
+                { en: "He doesn't play tennis.", vi: "Anh ấy không chơi quần vợt.", emoji: "🎾" },
+                { en: "I don't eat breakfast at school.", vi: "Tôi không ăn sáng ở trường.", emoji: "🍳" },
+                { en: "They don't live in Hanoi.", vi: "Họ không sống ở Hà Nội.", emoji: "🏙️" },
+                { en: "My father doesn't smoke.", vi: "Bố tôi không hút thuốc.", emoji: "🚭" },
+                { en: "We don't go to bed late.", vi: "Chúng tôi không đi ngủ muộn.", emoji: "🌙" },
+                { en: "She doesn't listen to loud music.", vi: "Cô ấy không nghe nhạc to.", emoji: "🎧" },
+                { en: "I don't watch TV in the morning.", vi: "Tôi không xem TV vào buổi sáng.", emoji: "📺" },
+                { en: "They don't speak French.", vi: "Họ không nói tiếng Pháp.", emoji: "🇫🇷" },
+                { en: "My mother doesn't drive a car.", vi: "Mẹ tôi không lái xe hơi.", emoji: "🚗" },
+                { en: "Do you like English?", vi: "Bạn có thích tiếng Anh không?", emoji: "🇬🇧" },
+                { en: "Does he play football every day?", vi: "Anh ấy có chơi bóng đá mỗi ngày không?", emoji: "⚽" },
+                { en: "Do they live in Vietnam?", vi: "Họ có sống ở Việt Nam không?", emoji: "🇻🇳" },
+                { en: "Does your father work in a bank?", vi: "Bố bạn làm việc ở ngân hàng phải không?", emoji: "🏦" },
+                { en: "Do we have any homework today?", vi: "Hôm nay chúng ta có bài tập về nhà không?", emoji: "📝" },
+                { en: "Does she go to school by bus?", vi: "Cô ấy đi học bằng xe buýt phải không?", emoji: "🚌" },
+                { en: "Do you read books before sleeping?", vi: "Bạn có đọc sách trước khi ngủ không?", emoji: "📖" },
+                { en: "Does he like cats or dogs?", vi: "Anh ấy thích mèo hay chó?", emoji: "🐾" },
+                { en: "Do they watch movies on weekends?", vi: "Họ có xem phim vào cuối tuần không?", emoji: "🎬" },
+                { en: "Does your mother cook dinner every night?", vi: "Mẹ bạn có nấu bữa tối mỗi đêm không?", emoji: "👩‍🍳" },
+            ],
+            "Thì Hiện Tại Tiếp Diễn (S + be + V-ing)": [
+                { en: "Nga is talking to her friend now.", vi: "Nga đang nói chuyện với bạn cô ấy.", emoji: "💬" },
+                { en: "I am doing my homework at the moment.", vi: "Tôi đang làm bài tập vào lúc này.", emoji: "📝" },
+                { en: "They are watching TV in the living room.", vi: "Họ đang xem TV trong phòng khách.", emoji: "📺" },
+                { en: "He is playing football with his friends.", vi: "Anh ấy đang chơi bóng với bạn.", emoji: "⚽" },
+                { en: "We are having lunch in the canteen.", vi: "Chúng tôi đang ăn trưa ở căn tin.", emoji: "🍱" },
+                { en: "My mother is cooking dinner in the kitchen.", vi: "Mẹ tôi đang nấu bữa tối trong bếp.", emoji: "👩‍🍳" },
+                { en: "The students are studying English now.", vi: "Học sinh đang học tiếng Anh.", emoji: "📚" },
+                { en: "She is wearing a beautiful dress today.", vi: "Hôm nay cô ấy đang mặc một chiếc váy đẹp.", emoji: "👗" },
+                { en: "It is raining outside.", vi: "Trời đang mưa ngoài kia.", emoji: "🌧️" },
+                { en: "The children are playing in the garden.", vi: "Bọn trẻ đang chơi trong vườn.", emoji: "🌳" },
+                { en: "I am not listening to music right now.", vi: "Tôi không nghe nhạc ngay lúc này.", emoji: "🎧" },
+                { en: "She isn't reading a book.", vi: "Cô ấy không đang đọc sách.", emoji: "📖" },
+                { en: "They aren't watching television.", vi: "Họ không xem TV.", emoji: "📺" },
+                { en: "He isn't studying English today.", vi: "Hôm nay anh ấy không học tiếng Anh.", emoji: "👨‍💻" },
+                { en: "We aren't eating dinner yet.", vi: "Chúng tôi chưa ăn tối.", emoji: "🍽️" },
+                { en: "My father isn't working at the moment.", vi: "Bố tôi không làm việc lúc này.", emoji: "💼" },
+                { en: "The dog isn't sleeping.", vi: "Con chó không ngủ.", emoji: "🐶" },
+                { en: "It isn't raining now.", vi: "Trời không mưa bây giờ.", emoji: "☀️" },
+                { en: "I'm not talking to you!", vi: "Tôi không nói chuyện với bạn đâu!", emoji: "😤" },
+                { en: "They aren't running in the park.", vi: "Họ không chạy trong công viên.", emoji: "🏞️" },
+                { en: "Are you studying English now?", vi: "Bạn đang học tiếng Anh phải không?", emoji: "📚" },
+                { en: "Is your brother watching TV?", vi: "Anh trai bạn đang xem TV phải không?", emoji: "📺" },
+                { en: "Are they playing football in the yard?", vi: "Họ đang chơi bóng trong sân phải không?", emoji: "⚽" },
+                { en: "Is she wearing a red dress today?", vi: "Cô ấy đang mặc váy đỏ hôm nay à?", emoji: "👗" },
+                { en: "Am I doing this exercise correctly?", vi: "Tôi đang làm bài tập này đúng không?", emoji: "🤔" },
+                { en: "Is it raining outside?", vi: "Trời đang mưa ngoài kia phải không?", emoji: "☔" },
+                { en: "Are we having lunch together?", vi: "Chúng ta đang ăn trưa cùng nhau phải không?", emoji: "🍱" },
+                { en: "Is he writing a letter to his friend?", vi: "Anh ấy đang viết thư cho bạn à?", emoji: "✉️" },
+                { en: "Are the students listening to the teacher?", vi: "Học sinh đang nghe cô giáo giảng à?", emoji: "🧑‍🏫" },
+                { en: "Are your parents working now?", vi: "Bố mẹ bạn đang làm việc bây giờ à?", emoji: "💼" },
+            ],
+            "Thì Hiện Tại Hoàn Thành (S + have/has + V3/ed)": [
+                { en: "Mary has participated in the dance club since last year.", vi: "Mary đã tham gia câu lạc bộ khiêu vũ từ năm ngoái.", emoji: "💃" },
+                { en: "I have finished my homework.", vi: "Tôi đã làm xong bài tập về nhà.", emoji: "✅" },
+                { en: "They have visited Hanoi twice.", vi: "Họ đã đến Hà Nội hai lần.", emoji: "🏙️" },
+                { en: "She has just cleaned her room.", vi: "Cô ấy vừa mới dọn phòng xong.", emoji: "🧹" },
+                { en: "We have lived here for ten years.", vi: "Chúng tôi đã sống ở đây được mười năm.", emoji: "🗓️" },
+                { en: "He has broken his leg.", vi: "Anh ấy đã bị gãy chân.", emoji: "🦵" },
+                { en: "My parents have gone to the market.", vi: "Bố mẹ tôi đã đi chợ.", emoji: "🛒" },
+                { en: "The students have learned this lesson already.", vi: "Học sinh đã học bài này rồi.", emoji: "📚" },
+                { en: "I have written three letters today.", vi: "Hôm nay tôi đã viết ba bức thư.", emoji: "✉️" },
+                { en: "She has seen that movie many times.", vi: "Cô ấy đã xem bộ phim đó nhiều lần.", emoji: "🎬" },
+                { en: "I haven't seen that film yet.", vi: "Tôi vẫn chưa xem bộ phim đó.", emoji: "🎞️" },
+                { en: "She hasn't finished her homework.", vi: "Cô ấy chưa làm xong bài tập.", emoji: "📝" },
+                { en: "They haven't come back home.", vi: "Họ vẫn chưa về nhà.", emoji: "🏠" },
+                { en: "He hasn't eaten anything this morning.", vi: "Anh ấy chưa ăn gì sáng nay.", emoji: "🍳" },
+                { en: "We haven't met each other for a long time.", vi: "Chúng tôi đã lâu không gặp nhau.", emoji: "👋" },
+                { en: "My sister hasn't called me today.", vi: "Em gái tôi chưa gọi cho tôi hôm nay.", emoji: "📱" },
+                { en: "The teacher hasn't checked our tests yet.", vi: "Cô giáo vẫn chưa chấm bài kiểm tra.", emoji: "💯" },
+                { en: "I haven't been to Da Lat before.", vi: "Tôi chưa từng đến Đà Lạt trước đây.", emoji: "🌲" },
+                { en: "She hasn't bought any souvenirs.", vi: "Cô ấy chưa mua món quà lưu niệm nào.", emoji: "🎁" },
+                { en: "They haven't started the game yet.", vi: "Họ vẫn chưa bắt đầu trò chơi.", emoji: "🎮" },
+                { en: "Have you ever been to Ho Chi Minh City?", vi: "Bạn đã bao giờ đến TP. Hồ Chí Minh chưa?", emoji: "🏙️" },
+                { en: "Has she done her homework yet?", vi: "Cô ấy đã làm xong bài tập chưa?", emoji: "🤔" },
+                { en: "Have they finished the report?", vi: "Họ đã hoàn thành báo cáo chưa?", emoji: "📄" },
+                { en: "Has he eaten breakfast?", vi: "Anh ấy đã ăn sáng chưa?", emoji: "🍳" },
+                { en: "Have you called your parents today?", vi: "Bạn đã gọi cho bố mẹ hôm nay chưa?", emoji: "📱" },
+                { en: "Has your brother washed the dishes?", vi: "Anh trai bạn đã rửa chén chưa?", emoji: "🍽️" },
+                { en: "Have the students learned this grammar point?", vi: "Học sinh đã học điểm ngữ pháp này chưa?", emoji: "📚" },
+                { en: "Has it stopped raining yet?", vi: "Trời đã ngừng mưa chưa?", emoji: "☔" },
+                { en: "Have we arrived at the station?", vi: "Chúng ta đã đến nhà ga chưa?", emoji: "🚉" },
+                { en: "Has your friend ever visited Vietnam?", vi: "Bạn của bạn đã từng đến Việt Nam chưa?", emoji: "🇻🇳" },
+            ],
+            "Thì Quá Khứ Đơn (S + V2/ed; didn't + V)": [
+                { en: "I went on a home-stay last summer.", vi: "Tôi đã tham gia chương trình ở trọ vào mùa hè năm ngoái.", emoji: "☀️" },
+                { en: "His father bought him a new bag yesterday.", vi: "Cha anh ấy đã mua cho anh một chiếc cặp mới hôm qua.", emoji: "🎒" },
+                { en: "They played football after school.", vi: "Họ đã chơi bóng sau giờ học.", emoji: "⚽" },
+                { en: "She visited her grandmother last weekend.", vi: "Cô ấy đã thăm bà vào cuối tuần trước.", emoji: "👵" },
+                { en: "We watched a movie last night.", vi: "Chúng tôi đã xem phim tối qua.", emoji: "🎬" },
+                { en: "My parents worked in a hospital many years ago.", vi: "Bố mẹ tôi đã làm việc trong bệnh viện nhiều năm trước.", emoji: "🏥" },
+                { en: "He studied English at that school.", vi: "Anh ấy đã học tiếng Anh ở ngôi trường đó.", emoji: "🏫" },
+                { en: "The children helped their mother cook dinner.", vi: "Bọn trẻ đã giúp mẹ nấu ăn.", emoji: "👩‍🍳" },
+                { en: "I walked to school yesterday morning.", vi: "Tôi đã đi bộ đến trường sáng hôm qua.", emoji: "🚶" },
+                { en: "She cleaned her room last Sunday.", vi: "Cô ấy đã dọn phòng vào Chủ nhật tuần trước.", emoji: "🧹" },
+                { en: "I didn't go to the party last night.", vi: "Tôi đã không đi dự tiệc tối qua.", emoji: "🎉" },
+                { en: "He didn't watch TV yesterday.", vi: "Anh ấy đã không xem TV hôm qua.", emoji: "📺" },
+                { en: "They didn't play football last weekend.", vi: "Họ không chơi bóng cuối tuần trước.", emoji: "⚽" },
+                { en: "She didn't eat breakfast this morning.", vi: "Cô ấy đã không ăn sáng sáng nay.", emoji: "🍳" },
+                { en: "We didn't study English yesterday.", vi: "Chúng tôi đã không học tiếng Anh hôm qua.", emoji: "📚" },
+                { en: "My father didn't work on Sunday.", vi: "Bố tôi đã không làm việc vào Chủ nhật.", emoji: "💼" },
+                { en: "He didn't call me last night.", vi: "Anh ấy đã không gọi cho tôi tối qua.", emoji: "📱" },
+                { en: "I didn't see her at the park.", vi: "Tôi đã không nhìn thấy cô ấy trong công viên.", emoji: "🏞️" },
+                { en: "They didn't travel to Hue last summer.", vi: "Họ đã không đi du lịch Huế mùa hè trước.", emoji: "✈️" },
+                { en: "She didn't buy any new clothes.", vi: "Cô ấy đã không mua quần áo mới.", emoji: "👗" },
+                { en: "Did you do your homework yesterday?", vi: "Bạn đã làm bài tập về nhà hôm qua chưa?", emoji: "🤔" },
+                { en: "Did she visit her grandparents last weekend?", vi: "Cô ấy đã thăm ông bà vào cuối tuần trước phải không?", emoji: "👵" },
+                { en: "Did they go to school by bus?", vi: "Họ đã đi học bằng xe buýt à?", emoji: "🚌" },
+                { en: "Did he call you last night?", vi: "Anh ấy đã gọi cho bạn tối qua à?", emoji: "📞" },
+                { en: "Did you see that movie yesterday?", vi: "Bạn có xem bộ phim đó hôm qua không?", emoji: "🎞️" },
+                { en: "Did your father work late last night?", vi: "Tối qua bố bạn có làm việc muộn không?", emoji: "👨‍💻" },
+                { en: "Did we meet them at the station?", vi: "Chúng ta có gặp họ ở nhà ga không?", emoji: "🚉" },
+                { en: "Did the students finish their tests?", vi: "Học sinh có làm xong bài kiểm tra không?", emoji: "💯" },
+                { en: "Did she help her mother cook dinner?", vi: "Cô ấy có giúp mẹ nấu ăn không?", emoji: "👩‍🍳" },
+                { en: "Did it rain last night?", vi: "Tối qua có mưa không?", emoji: "☔" },
+            ],
+            "Thì Tương Lai Đơn (S + will + V)": [
+                { en: "She will be twenty-one next month.", vi: "Cô ấy sẽ 21 tuổi vào tháng sau.", emoji: "🎂" },
+                { en: "I will help you with your homework.", vi: "Tôi sẽ giúp bạn làm bài tập về nhà.", emoji: "🤝" },
+                { en: "They will visit their grandparents tomorrow.", vi: "Họ sẽ thăm ông bà vào ngày mai.", emoji: "👵" },
+                { en: "He will play football this afternoon.", vi: "Chiều nay anh ấy sẽ chơi bóng đá.", emoji: "⚽" },
+                { en: "We will go to the zoo next weekend.", vi: "Cuối tuần sau chúng tôi sẽ đi sở thú.", emoji: "🦓" },
+                { en: "My father will buy a new car next year.", vi: "Năm sau bố tôi sẽ mua một chiếc xe mới.", emoji: "🚗" },
+                { en: "The teacher will give us a test next week.", vi: "Tuần tới cô giáo sẽ cho chúng tôi làm bài kiểm tra.", emoji: "📝" },
+                { en: "I will call you tonight.", vi: "Tối nay tôi sẽ gọi cho bạn.", emoji: "📞" },
+                { en: "They will build a new school in this area.", vi: "Họ sẽ xây một ngôi trường mới ở khu vực này.", emoji: "🏫" },
+                { en: "We will have a picnic next Sunday.", vi: "Chủ nhật tới chúng tôi sẽ đi dã ngoại.", emoji: "🧺" },
+                { en: "I won't forget your birthday.", vi: "Tôi sẽ không quên sinh nhật của bạn đâu.", emoji: "🎁" },
+                { en: "She won't go to the party tonight.", vi: "Cô ấy sẽ không đi dự tiệc tối nay.", emoji: "🎉" },
+                { en: "They won't play football tomorrow.", vi: "Họ sẽ không chơi bóng đá vào ngày mai.", emoji: "⚽" },
+                { en: "We won't watch TV after dinner.", vi: "Chúng tôi sẽ không xem TV sau bữa tối.", emoji: "📺" },
+                { en: "He won't come to school on Sunday.", vi: "Anh ấy sẽ không đến trường vào Chủ nhật.", emoji: "🏫" },
+                { en: "My parents won't travel next month.", vi: "Bố mẹ tôi sẽ không đi du lịch tháng tới.", emoji: "✈️" },
+                { en: "The weather won't be cold tomorrow.", vi: "Thời tiết ngày mai sẽ không lạnh đâu.", emoji: "🥶" },
+                { en: "I won't buy any new clothes this week.", vi: "Tuần này tôi sẽ không mua quần áo mới.", emoji: "👕" },
+                { en: "She won't study late tonight.", vi: "Tối nay cô ấy sẽ không học muộn.", emoji: "🦉" },
+                { en: "They won't open the store on Sunday.", vi: "Họ sẽ không mở cửa hàng vào Chủ nhật.", emoji: "🏪" },
+                { en: "Will you come to my party?", vi: "Bạn sẽ đến bữa tiệc của tôi chứ?", emoji: "🥳" },
+                { en: "Will he travel to Japan next year?", vi: "Anh ấy sẽ đi Nhật vào năm tới phải không?", emoji: "🇯🇵" },
+                { en: "Will they play football this afternoon?", vi: "Họ sẽ chơi bóng vào chiều nay à?", emoji: "⚽" },
+                { en: "Will she visit her parents tomorrow?", vi: "Cô ấy sẽ thăm bố mẹ vào ngày mai à?", emoji: "👨‍👩‍👧" },
+                { en: "Will we have an exam next week?", vi: "Tuần sau chúng ta có bài kiểm tra không?", emoji: "✍️" },
+                { en: "Will your father go to work on Sunday?", vi: "Bố bạn sẽ đi làm vào Chủ nhật à?", emoji: "💼" },
+                { en: "Will the weather be hot tomorrow?", vi: "Ngày mai thời tiết sẽ nóng phải không?", emoji: "🥵" },
+                { en: "Will it rain tonight?", vi: "Tối nay trời sẽ mưa chứ?", emoji: "☔" },
+                { en: "Will the students study hard for the test?", vi: "Học sinh sẽ học chăm cho bài kiểm tra chứ?", emoji: "📚" },
+                { en: "Will you help me with this problem?", vi: "Bạn sẽ giúp tôi làm bài này chứ?", emoji: "🤝" },
+            ],
+            "Tương Lai Gần (S + be going to + V)": [
+                { en: "Her father is going to have tea and read the newspaper.", vi: "Cha cô ấy định uống trà và đọc báo.", emoji: "📰" },
+                { en: "They're going to Hanoi this summer.", vi: "Họ định đi Hà Nội vào mùa hè này.", emoji: "✈️" },
+                { en: "I'm going to study hard this year.", vi: "Tôi định học chăm chỉ trong năm nay.", emoji: "💪" },
+                { en: "We are going to visit our grandparents tomorrow.", vi: "Chúng tôi định đi thăm ông bà vào ngày mai.", emoji: "👵" },
+                { en: "She is going to buy a new dress for the party.", vi: "Cô ấy định mua một chiếc váy mới cho bữa tiệc.", emoji: "👗" },
+                { en: "He is going to fix his bike this afternoon.", vi: "Chiều nay anh ấy định sửa xe đạp.", emoji: "🚲" },
+                { en: "My friends are going to play badminton after school.", vi: "Bạn bè tôi định chơi cầu lông sau giờ học.", emoji: "🏸" },
+                { en: "I'm going to take some photos at the beach.", vi: "Tôi định chụp vài tấm hình ở bãi biển.", emoji: "📸" },
+                { en: "We are going to clean the classroom tomorrow morning.", vi: "Chúng tôi định dọn lớp vào sáng mai.", emoji: "🧹" },
+                { en: "The students are going to have a picnic next weekend.", vi: "Học sinh định đi dã ngoại vào cuối tuần tới.", emoji: "🧺" },
+                { en: "I'm not going to watch TV tonight.", vi: "Tối nay tôi không định xem TV.", emoji: "📺" },
+                { en: "She isn't going to buy any souvenirs.", vi: "Cô ấy không định mua quà lưu niệm nào cả.", emoji: "🎁" },
+                { en: "They aren't going to travel this summer.", vi: "Họ không định đi du lịch mùa hè này.", emoji: "🧳" },
+                { en: "He isn't going to eat breakfast today.", vi: "Hôm nay anh ấy không định ăn sáng.", emoji: "🍳" },
+                { en: "We aren't going to play football after school.", vi: "Chúng tôi không định chơi bóng sau giờ học.", emoji: "⚽" },
+                { en: "My parents aren't going to move to another city.", vi: "Bố mẹ tôi không định chuyển đến thành phố khác.", emoji: "🏙️" },
+                { en: "She isn't going to wear that dress to the party.", vi: "Cô ấy không định mặc chiếc váy đó đến bữa tiệc.", emoji: "👗" },
+                { en: "I'm not going to call him again.", vi: "Tôi không định gọi cho anh ấy nữa.", emoji: "📞" },
+                { en: "They aren't going to build a new bridge.", vi: "Họ không định xây cây cầu mới.", emoji: "🌉" },
+                { en: "We aren't going to stay up late tonight.", vi: "Tối nay chúng tôi không định thức khuya.", emoji: "🦉" },
+                { en: "Are you going to join the picnic?", vi: "Bạn định tham gia buổi dã ngoại chứ?", emoji: "🧺" },
+                { en: "Is she going to wear that red dress?", vi: "Cô ấy định mặc chiếc váy đỏ đó à?", emoji: "👗" },
+                { en: "Are they going to play football this afternoon?", vi: "Họ định chơi bóng vào chiều nay à?", emoji: "⚽" },
+                { en: "Is he going to visit his grandparents this weekend?", vi: "Cuối tuần này anh ấy định thăm ông bà à?", emoji: "👵" },
+                { en: "Are we going to have a test tomorrow?", vi: "Ngày mai chúng ta định có bài kiểm tra à?", emoji: "📝" },
+                { en: "Am I going to meet the new teacher today?", vi: "Hôm nay tôi sẽ gặp cô giáo mới à?", emoji: "👩‍🏫" },
+                { en: "Are your parents going to travel to Da Nang?", vi: "Bố mẹ bạn định đi Đà Nẵng à?", emoji: "✈️" },
+                { en: "Is it going to rain this afternoon?", vi: "Chiều nay trời có định mưa không?", emoji: "☔" },
+                { en: "Are the students going to visit the museum?", vi: "Học sinh định đi tham quan viện bảo tàng à?", emoji: "🏛️" },
+                { en: "Is your brother going to study abroad next year?", vi: "Năm sau anh trai bạn định đi du học à?", emoji: "🎓" },
+            ],
+            "Giới từ (Prepositions)": [
+                { en: "There is a big tree in front of my house.", vi: "Có một cái cây lớn ở phía trước nhà tôi.", emoji: "🌳" },
+                { en: "The children are playing in front of the school.", vi: "Bọn trẻ đang chơi ở phía trước trường.", emoji: "🏫" },
+                { en: "Don't park your bike in front of the gate.", vi: "Đừng đỗ xe trước cổng.", emoji: "🚲" },
+                { en: "She stood in front of the mirror.", vi: "Cô ấy đứng trước gương.", emoji: "🪞" },
+                { en: "A car stopped in front of the shop.", vi: "Một chiếc xe dừng trước cửa hàng.", emoji: "🚗" },
+                { en: "My books are in the bag.", vi: "Sách của tôi ở trong cặp.", emoji: "🎒" },
+                { en: "She lives in Hanoi.", vi: "Cô ấy sống ở Hà Nội.", emoji: "🇻🇳" },
+                { en: "There are many apples in the basket.", vi: "Có nhiều táo trong giỏ.", emoji: "🍎" },
+                { en: "We swim in the river in summer.", vi: "Chúng tôi bơi trong sông vào mùa hè.", emoji: "🏊" },
+                { en: "He works in a hospital.", vi: "Anh ấy làm việc trong bệnh viện.", emoji: "🏥" },
+                { en: "The books are on the table.", vi: "Sách ở trên bàn.", emoji: "📚" },
+                { en: "There is a cat on the roof.", vi: "Có một con mèo trên mái nhà.", emoji: "🐈" },
+                { en: "My birthday is on Sunday.", vi: "Sinh nhật tôi vào Chủ nhật.", emoji: "🎂" },
+                { en: "She put her hand on my shoulder.", vi: "Cô ấy đặt tay lên vai tôi.", emoji: "🤝" },
+                { en: "There is a picture on the wall.", vi: "Có một bức tranh trên tường.", emoji: "🖼️" },
+                { en: "I usually get up at 6 o'clock.", vi: "Tôi thường dậy lúc 6 giờ.", emoji: "⏰" },
+                { en: "She works at a bank.", vi: "Cô ấy làm việc tại ngân hàng.", emoji: "🏦" },
+                { en: "Let's meet at the bus stop.", vi: "Hãy gặp nhau ở trạm xe buýt nhé.", emoji: "🚏" },
+                { en: "My father is good at cooking.", vi: "Bố tôi giỏi nấu ăn.", emoji: "👨‍🍳" },
+                { en: "The children laughed at the funny story.", vi: "Bọn trẻ cười vì câu chuyện hài hước.", emoji: "😂" },
+                { en: "I go to school every day.", vi: "Tôi đi học mỗi ngày.", emoji: "🏫" },
+                { en: "She is listening to music.", vi: "Cô ấy đang nghe nhạc.", emoji: "🎧" },
+                { en: "They walked to the park.", vi: "Họ đi bộ đến công viên.", emoji: "🏞️" },
+                { en: "He sent a letter to his friend.", vi: "Anh ấy gửi thư cho bạn mình.", emoji: "✉️" },
+                { en: "We're going to the beach tomorrow.", vi: "Ngày mai chúng tôi sẽ đi biển.", emoji: "🏖️" },
+                { en: "I come from Vietnam.", vi: "Tôi đến từ Việt Nam.", emoji: "🇻🇳" },
+                { en: "The train from Hanoi is late.", vi: "Chuyến tàu từ Hà Nội đến bị trễ.", emoji: "🚆" },
+                { en: "She received a gift from her mother.", vi: "Cô ấy nhận được món quà từ mẹ.", emoji: "🎁" },
+                { en: "This letter is from my best friend.", vi: "Bức thư này là từ bạn thân của tôi.", emoji: "💌" },
+                { en: "He runs from his house to the bus stop every morning.", vi: "Mỗi sáng anh ấy chạy từ nhà đến trạm xe buýt.", emoji: "🏃" },
+                { en: "She goes to school with her friends.", vi: "Cô ấy đi học cùng bạn bè.", emoji: "🧑‍🤝‍🧑" },
+                { en: "I usually drink coffee with milk.", vi: "Tôi thường uống cà phê với sữa.", emoji: "☕" },
+                { en: "He lives with his grandparents.", vi: "Anh ấy sống cùng ông bà.", emoji: "👵" },
+                { en: "Can I speak with you for a moment?", vi: "Tôi có thể nói chuyện với bạn một chút được không?", emoji: "🗣️" },
+                { en: "We are playing chess with each other.", vi: "Chúng tôi đang chơi cờ với nhau.", emoji: "♟️" },
+                { en: "My house is near the market.", vi: "Nhà tôi gần chợ.", emoji: "🛒" },
+                { en: "There is a park near the school.", vi: "Có một công viên gần trường.", emoji: "🌳" },
+                { en: "She sat near the window.", vi: "Cô ấy ngồi gần cửa sổ.", emoji: "🪟" },
+                { en: "We live near the river.", vi: "Chúng tôi sống gần con sông.", emoji: "🏞️" },
+                { en: "The bus stop is near the post office.", vi: "Trạm xe buýt ở gần bưu điện.", emoji: "📮" },
+                { en: "The ball rolled down the hill.", vi: "Quả bóng lăn xuống đồi.", emoji: "⚽" },
+                { en: "Please sit down.", vi: "Làm ơn ngồi xuống.", emoji: "🪑" },
+                { en: "He walked down the street.", vi: "Anh ấy đi bộ xuống phố.", emoji: "🚶" },
+                { en: "The rain is falling down heavily.", vi: "Mưa đang rơi nặng hạt xuống.", emoji: "🌧️" },
+                { en: "She looked down from the balcony.", vi: "Cô ấy nhìn xuống từ ban công.", emoji: "👀" },
+                { en: "The color of the sky is blue.", vi: "Màu của bầu trời là xanh.", emoji: "🌌" },
+                { en: "This is a photo of my family.", vi: "Đây là bức ảnh của gia đình tôi.", emoji: "👨‍👩‍👧‍👦" },
+                { en: "The legs of the chair are broken.", vi: "Chân ghế bị gãy.", emoji: "🪑" },
+                { en: "She is a friend of mine.", vi: "Cô ấy là một người bạn của tôi.", emoji: "😊" },
+                { en: "The name of the movie is \"Inside Out.\"", vi: "Tên của bộ phim là “Inside Out.\"", emoji: "🎬" },
+                { en: "We go to school by bus.", vi: "Chúng tôi đi học bằng xe buýt.", emoji: "🚌" },
+                { en: "This book was written by J.K. Rowling.", vi: "Cuốn sách này được viết bởi J.K. Rowling.", emoji: "✍️" },
+                { en: "The letter was sent by email.", vi: "Bức thư được gửi qua email.", emoji: "📧" },
+                { en: "She sat by the window.", vi: "Cô ấy ngồi bên cửa sổ.", emoji: "🪟" },
+                { en: "The house is by the river.", vi: "Ngôi nhà nằm bên cạnh con sông.", emoji: "🏡" },
+                { en: "I brush my teeth after breakfast.", vi: "Tôi đánh răng sau bữa sáng.", emoji: "🦷" },
+                { en: "We went home after school.", vi: "Chúng tôi về nhà sau giờ học.", emoji: "🏫" },
+                { en: "She takes a shower after playing sports.", vi: "Cô ấy tắm sau khi chơi thể thao.", emoji: "🚿" },
+                { en: "He called me after dinner.", vi: "Anh ấy gọi cho tôi sau bữa tối.", emoji: "📞" },
+                { en: "The meeting will start after lunch.", vi: "Cuộc họp sẽ bắt đầu sau bữa trưa.", emoji: "🤝" },
+                { en: "I always wash my hands before meals.", vi: "Tôi luôn rửa tay trước bữa ăn.", emoji: "🙌" },
+                { en: "She studies English before going to bed.", vi: "Cô ấy học tiếng Anh trước khi đi ngủ.", emoji: "📚" },
+                { en: "We arrived before noon.", vi: "Chúng tôi đến trước buổi trưa.", emoji: "🕛" },
+                { en: "He called me before the class started.", vi: "Anh ấy gọi cho tôi trước khi buổi học bắt đầu.", emoji: "📱" },
+                { en: "Please finish your homework before dinner.", vi: "Làm ơn hoàn thành bài tập trước bữa tối.", emoji: "📝" },
+                { en: "This gift is for you.", vi: "Món quà này dành cho bạn.", emoji: "🎁" },
+                { en: "She has lived here for five years.", vi: "Cô ấy đã sống ở đây được 5 năm.", emoji: "🗓️" },
+                { en: "We are waiting for the bus.", vi: "Chúng tôi đang đợi xe buýt.", emoji: "🚏" },
+                { en: "Thank you for helping me.", vi: "Cảm ơn bạn vì đã giúp tôi.", emoji: "🙏" },
+                { en: "He left for work at 7 a.m.", vi: "Anh ấy rời nhà đi làm lúc 7 giờ sáng.", emoji: "🕖" },
+                { en: "We are talking about our future plans.", vi: "Chúng tôi đang nói về kế hoạch tương lai.", emoji: "🔮" },
+                { en: "She knows a lot about history.", vi: "Cô ấy biết nhiều về lịch sử.", emoji: "📜" },
+                { en: "Tell me about your new school.", vi: "Kể cho tôi nghe về ngôi trường mới của bạn đi.", emoji: "🏫" },
+                { en: "I'm worried about my exam.", vi: "Tôi lo lắng về kỳ thi của mình.", emoji: "😟" },
+                { en: "This book is about animals.", vi: "Cuốn sách này nói về các loài động vật.", emoji: "🐾" },
+            ],
+            "Đại từ phản thân (Reflexive Pronouns)": [
+                { en: "I cut myself while I was cooking.", vi: "Tôi bị đứt tay khi đang nấu ăn.", emoji: "🔪" },
+                { en: "I taught myself how to play the guitar.", vi: "Tôi tự dạy mình chơi đàn guitar.", emoji: "🎸" },
+                { en: "I enjoyed myself at the party last night.", vi: "Tôi đã rất vui trong buổi tiệc tối qua.", emoji: "🎉" },
+                { en: "I looked at myself in the mirror.", vi: "Tôi nhìn mình trong gương.", emoji: "🪞" },
+                { en: "I hurt myself when I fell off the bike.", vi: "Tôi bị thương khi ngã khỏi xe đạp.", emoji: "🚲" },
+                { en: "You should take care of yourself.", vi: "Bạn nên chăm sóc bản thân mình.", emoji: "❤️" },
+                { en: "Did you make this cake yourself?", vi: "Bạn tự làm chiếc bánh này à?", emoji: "🎂" },
+                { en: "Don't blame yourself for the mistake.", vi: "Đừng tự trách mình vì lỗi đó.", emoji: "😔" },
+                { en: "You must protect yourself from the rain.", vi: "Bạn phải tự bảo vệ mình khỏi mưa.", emoji: "☔" },
+                { en: "Please help yourself to some cookies.", vi: "Cứ tự nhiên ăn bánh nhé.", emoji: "🍪" },
+                { en: "He hurt himself while playing football.", vi: "Anh ấy bị thương khi chơi bóng đá.", emoji: "⚽" },
+                { en: "He looked at himself in the mirror.", vi: "Anh ấy nhìn mình trong gương.", emoji: "🪞" },
+                { en: "He taught himself to swim.", vi: "Anh ấy tự dạy mình bơi.", emoji: "🏊" },
+                { en: "He introduced himself to the new students.", vi: "Anh ấy tự giới thiệu với các học sinh mới.", emoji: "👋" },
+                { en: "He cooked dinner by himself.", vi: "Anh ấy tự nấu bữa tối.", emoji: "👨‍🍳" },
+                { en: "She made the dress herself.", vi: "Cô ấy tự may chiếc váy đó.", emoji: "👗" },
+                { en: "She hurt herself when she fell.", vi: "Cô ấy bị thương khi ngã.", emoji: "🤕" },
+                { en: "She taught herself English by watching movies.", vi: "Cô ấy tự học tiếng Anh bằng cách xem phim.", emoji: "🎬" },
+                { en: "She looked at herself in the mirror.", vi: "Cô ấy nhìn mình trong gương.", emoji: "🪞" },
+                { en: "She told herself not to give up.", vi: "Cô ấy tự nhủ không được bỏ cuộc.", emoji: "💪" },
+                { en: "The cat cleaned itself after eating.", vi: "Con mèo tự liếm sạch sau khi ăn.", emoji: "🐈" },
+                { en: "The machine stopped itself suddenly.", vi: "Cái máy tự dừng đột ngột.", emoji: "🤖" },
+                { en: "The door opened by itself.", vi: "Cánh cửa tự mở.", emoji: "🚪" },
+                { en: "The dog hurt itself while running.", vi: "Con chó bị thương khi chạy.", emoji: "🐕" },
+                { en: "The computer turned off by itself.", vi: "Máy tính tự tắt.", emoji: "💻" },
+                { en: "We enjoyed ourselves at the picnic.", vi: "Chúng tôi đã rất vui trong buổi dã ngoại.", emoji: "🧺" },
+                { en: "We taught ourselves how to cook.", vi: "Chúng tôi tự học nấu ăn.", emoji: "🍳" },
+                { en: "We hurt ourselves during the game.", vi: "Chúng tôi bị thương trong trò chơi.", emoji: "🩹" },
+                { en: "We introduced ourselves to the new teacher.", vi: "Chúng tôi tự giới thiệu với cô giáo mới.", emoji: "👩‍🏫" },
+                { en: "We promised ourselves to study harder.", vi: "Chúng tôi tự hứa sẽ học chăm hơn.", emoji: "📚" },
+                { en: "You should all behave yourselves in class.", vi: "Tất cả các bạn nên cư xử đúng mực trong lớp.", emoji: "🧑‍🏫" },
+                { en: "Did you enjoy yourselves at the party?", vi: "Các bạn có vui trong buổi tiệc không?", emoji: "🥳" },
+                { en: "You must protect yourselves from the sun.", vi: "Các bạn phải tự bảo vệ mình khỏi nắng.", emoji: "☀️" },
+                { en: "You can help yourselves to some fruit.", vi: "Các bạn cứ tự nhiên ăn trái cây nhé.", emoji: "🍓" },
+                { en: "Did you do this yourselves?", vi: "Các bạn tự làm cái này à?", emoji: "🤔" },
+                { en: "They looked at themselves in the mirror.", vi: "Họ nhìn mình trong gương.", emoji: "🪞" },
+                { en: "They taught themselves how to play the piano.", vi: "Họ tự học chơi đàn piano.", emoji: "🎹" },
+                { en: "They hurt themselves while climbing the mountain.", vi: "Họ bị thương khi leo núi.", emoji: "⛰️" },
+                { en: "They enjoyed themselves at the festival.", vi: "Họ đã rất vui trong lễ hội.", emoji: "🎊" },
+                { en: "They built the house themselves.", vi: "Họ tự xây ngôi nhà đó.", emoji: "🏡" },
+            ],
+            "So sánh (Comparisons)": [
+                { en: "She is as tall as her brother.", vi: "Cô ấy cao bằng anh trai mình.", emoji: "📏" },
+                { en: "This book is as interesting as that one.", vi: "Cuốn sách này hay bằng cuốn kia.", emoji: "📚" },
+                { en: "He runs as fast as a tiger.", vi: "Anh ấy chạy nhanh như con hổ.", emoji: "🐅" },
+                { en: "My house is as big as yours.", vi: "Nhà tôi to bằng nhà bạn.", emoji: "🏠" },
+                { en: "I can swim as well as you.", vi: "Tôi có thể bơi giỏi như bạn.", emoji: "🏊" },
+                { en: "This exercise is not as easy as the last one.", vi: "Bài tập này không dễ như bài trước.", emoji: "🧠" },
+                { en: "My room isn't as clean as yours.", vi: "Phòng tôi không sạch bằng phòng bạn.", emoji: "🧹" },
+                { en: "He doesn't drive as carefully as his father.", vi: "Anh ấy lái xe không cẩn thận như cha mình.", emoji: "🚗" },
+                { en: "Today isn't as hot as yesterday.", vi: "Hôm nay không nóng bằng hôm qua.", emoji: "🌡️" },
+                { en: "This movie isn't as funny as I expected.", vi: "Bộ phim này không vui như tôi mong đợi.", emoji: "🎬" },
+                { en: "My house is bigger than yours.", vi: "Nhà tôi to hơn nhà bạn.", emoji: "🏡" },
+                { en: "This test is easier than the last one.", vi: "Bài kiểm tra này dễ hơn bài trước.", emoji: "📝" },
+                { en: "She is more beautiful than her sister.", vi: "Cô ấy xinh hơn chị của mình.", emoji: "👩" },
+                { en: "He runs faster than Tom.", vi: "Anh ấy chạy nhanh hơn Tom.", emoji: "🏃" },
+                { en: "Today is more exciting than yesterday.", vi: "Hôm nay thú vị hơn hôm qua.", emoji: "🎉" },
+                { en: "This book is less interesting than that one.", vi: "Cuốn sách này ít thú vị hơn cuốn kia.", emoji: "📖" },
+                { en: "She is less talkative than her friend.", vi: "Cô ấy ít nói hơn bạn của mình.", emoji: "🗣️" },
+                { en: "I'm less tired than yesterday.", vi: "Tôi ít mệt hơn hôm qua.", emoji: "😩" },
+                { en: "He works less carefully than before.", vi: "Anh ấy làm việc ít cẩn thận hơn trước.", emoji: "👨‍💻" },
+                { en: "The film was less exciting than I thought.", vi: "Bộ phim ít hấp dẫn hơn tôi nghĩ.", emoji: "🎞️" },
+                { en: "He is the tallest student in the class.", vi: "Anh ấy là học sinh cao nhất lớp.", emoji: "🥇" },
+                { en: "This is the most beautiful flower of all.", vi: "Đây là bông hoa đẹp nhất trong tất cả.", emoji: "🌸" },
+                { en: "That was the happiest day of my life.", vi: "Đó là ngày hạnh phúc nhất trong đời tôi.", emoji: "😊" },
+                { en: "She is the smartest girl in our group.", vi: "Cô ấy là cô gái thông minh nhất nhóm.", emoji: "💡" },
+                { en: "Mount Everest is the highest mountain in the world.", vi: "Everest là ngọn núi cao nhất thế giới.", emoji: "🏔️" },
+                { en: "I have as many books as you.", vi: "Tôi có nhiều sách bằng bạn.", emoji: "📚" },
+                { en: "He drinks as much water as I do.", vi: "Anh ấy uống nhiều nước bằng tôi.", emoji: "💧" },
+                { en: "She has more friends than me.", vi: "Cô ấy có nhiều bạn hơn tôi.", emoji: "🧑‍🤝‍🧑" },
+                { en: "We have less time than before.", vi: "Chúng tôi có ít thời gian hơn trước.", emoji: "⏳" },
+                { en: "They earn as much money as their parents.", vi: "Họ kiếm được nhiều tiền như bố mẹ họ.", emoji: "💰" },
+                { en: "The harder you study, the better you get.", vi: "Bạn học càng chăm, bạn càng giỏi.", emoji: "📈" },
+                { en: "The older he gets, the wiser he becomes.", vi: "Anh ấy càng lớn tuổi càng khôn ngoan.", emoji: "👴" },
+                { en: "The more you read, the more you learn.", vi: "Bạn đọc càng nhiều, bạn học càng nhiều.", emoji: "🧠" },
+                { en: "The faster you run, the sooner you arrive.", vi: "Bạn chạy càng nhanh, bạn đến càng sớm.", emoji: "🏃‍♀️" },
+                { en: "The more expensive the hotel is, the better the service is.", vi: "Khách sạn càng đắt thì dịch vụ càng tốt.", emoji: "🏨" },
+                { en: "This room is twice as large as mine.", vi: "Phòng này rộng gấp đôi phòng tôi.", emoji: "↔️" },
+                { en: "She is three times as old as her sister.", vi: "Cô ấy lớn hơn em gái ba lần.", emoji: "👧" },
+                { en: "This pen is half as expensive as that one.", vi: "Cây bút này chỉ bằng nửa giá cây kia.", emoji: "🖊️" },
+                { en: "He earns twice as much as his friend.", vi: "Anh ấy kiếm được gấp đôi bạn mình.", emoji: "💵" },
+                { en: "The car is ten times as fast as a bicycle.", vi: "Chiếc xe hơi nhanh gấp mười lần xe đạp.", emoji: "🚗" },
+                { en: "She is by far the best student in the class.", vi: "Cô ấy chắc chắn là học sinh giỏi nhất lớp.", emoji: "🏆" },
+                { en: "This is easily the most difficult question.", vi: "Đây rõ ràng là câu hỏi khó nhất.", emoji: "❓" },
+                { en: "He is much the most talented artist here.", vi: "Anh ấy là nghệ sĩ tài năng nhất ở đây.", emoji: "🎨" },
+                { en: "That was by far the funniest movie I've ever seen.", vi: "Đó chắc chắn là bộ phim hài nhất tôi từng xem.", emoji: "😂" },
+                { en: "This mountain is easily the highest in the area.", vi: "Ngọn núi này rõ ràng là cao nhất khu vực.", emoji: "⛰️" },
+            ],
+            "Cấu trúc 'too' và 'enough'": [
+                { en: "It's too cold to go swimming today.", vi: "Hôm nay trời quá lạnh để đi bơi.", emoji: "🥶" },
+                { en: "She is too tired to walk home.", vi: "Cô ấy quá mệt để đi bộ về nhà.", emoji: "🚶‍♀️" },
+                { en: "This box is too heavy to carry.", vi: "Cái hộp này quá nặng để mang đi.", emoji: "📦" },
+                { en: "He speaks too fast for me to understand.", vi: "Anh ấy nói quá nhanh khiến tôi không hiểu nổi.", emoji: "🗣️" },
+                { en: "The water is too hot to drink.", vi: "Nước quá nóng để uống.", emoji: "🔥" },
+                { en: "There are too many students in the classroom.", vi: "Có quá nhiều học sinh trong lớp.", emoji: "👨‍👩‍👧‍👦" },
+                { en: "You put too much sugar in my coffee.", vi: "Bạn cho quá nhiều đường vào cà phê của tôi.", emoji: "☕" },
+                { en: "I have too few friends to talk with.", vi: "Tôi có quá ít bạn để trò chuyện.", emoji: "😕" },
+                { en: "They have too little money to buy that car.", vi: "Họ có quá ít tiền để mua chiếc xe đó.", emoji: "🚗" },
+                { en: "We spent too much time on this project.", vi: "Chúng tôi đã dành quá nhiều thời gian cho dự án này.", emoji: "⏳" },
+                { en: "She is old enough to go to school by herself.", vi: "Cô ấy đủ lớn để tự đi học.", emoji: "🎒" },
+                { en: "The water is warm enough to swim in.", vi: "Nước đủ ấm để bơi.", emoji: "🏊" },
+                { en: "He isn't tall enough to reach the shelf.", vi: "Anh ấy không đủ cao để với tới kệ.", emoji: "📏" },
+                { en: "The test was easy enough for everyone to pass.", vi: "Bài kiểm tra đủ dễ để mọi người đều qua.", emoji: "✅" },
+                { en: "The room is bright enough to read without a lamp.", vi: "Căn phòng đủ sáng để đọc sách mà không cần đèn.", emoji: "💡" },
+                { en: "We have enough time to finish our homework.", vi: "Chúng tôi có đủ thời gian để hoàn thành bài tập.", emoji: "⏰" },
+                { en: "He has enough money to buy a new phone.", vi: "Anh ấy có đủ tiền để mua điện thoại mới.", emoji: "📱" },
+                { en: "There is enough food for everyone to eat.", vi: "Có đủ thức ăn cho mọi người ăn.", emoji: "🍔" },
+                { en: "I brought enough clothes to stay for a week.", vi: "Tôi mang đủ quần áo để ở lại một tuần.", emoji: "👕" },
+                { en: "She doesn't have enough energy to keep working.", vi: "Cô ấy không có đủ năng lượng để tiếp tục làm việc.", emoji: "⚡" },
+            ],
+            "Câu hỏi (Questions)": [
+                { en: "What is your name?", vi: "Tên bạn là gì?", emoji: "📛" },
+                { en: "What are you doing now?", vi: "Bạn đang làm gì vậy?", emoji: "🤔" },
+                { en: "What subject do you like best?", vi: "Bạn thích môn học nào nhất?", emoji: "📚" },
+                { en: "What time do you go to bed?", vi: "Bạn đi ngủ lúc mấy giờ?", emoji: "⏰" },
+                { en: "What did you eat for breakfast?", vi: "Bạn đã ăn gì cho bữa sáng?", emoji: "🍳" },
+                { en: "Where do you live?", vi: "Bạn sống ở đâu?", emoji: "🏠" },
+                { en: "Where are you going this weekend?", vi: "Cuối tuần này bạn sẽ đi đâu?", emoji: "✈️" },
+                { en: "Where did she buy that dress?", vi: "Cô ấy đã mua chiếc váy đó ở đâu?", emoji: "👗" },
+                { en: "Where is your school?", vi: "Trường của bạn ở đâu?", emoji: "🏫" },
+                { en: "Where can I find the library?", vi: "Tôi có thể tìm thư viện ở đâu?", emoji: "🏛️" },
+                { en: "When do you usually get up?", vi: "Bạn thường dậy lúc mấy giờ?", emoji: "⏰" },
+                { en: "When is your birthday?", vi: "Sinh nhật bạn là khi nào?", emoji: "🎂" },
+                { en: "When did you start learning English?", vi: "Bạn bắt đầu học tiếng Anh khi nào?", emoji: "🇬🇧" },
+                { en: "When will they arrive?", vi: "Họ sẽ đến khi nào?", emoji: "🛬" },
+                { en: "When do you have English classes?", vi: "Bạn học tiếng Anh vào khi nào?", emoji: "🗓️" },
+                { en: "Why are you late for school?", vi: "Tại sao bạn đi học trễ?", emoji: "🏃‍♀️" },
+                { en: "Why did you cry yesterday?", vi: "Hôm qua tại sao bạn khóc?", emoji: "😢" },
+                { en: "Why are you studying English?", vi: "Tại sao bạn đang học tiếng Anh?", emoji: "📚" },
+                { en: "Why don't you like vegetables?", vi: "Tại sao bạn không thích rau?", emoji: "🥦" },
+                { en: "Why did he leave early?", vi: "Tại sao anh ấy rời đi sớm?", emoji: "🚪" },
+                { en: "Who is your best friend?", vi: "Ai là bạn thân của bạn?", emoji: "🧑‍🤝‍🧑" },
+                { en: "Who teaches you English?", vi: "Ai dạy bạn môn tiếng Anh?", emoji: "👩‍🏫" },
+                { en: "Who opened the door?", vi: "Ai đã mở cửa vậy?", emoji: "🚪" },
+                { en: "Who are you talking to?", vi: "Bạn đang nói chuyện với ai?", emoji: "🗣️" },
+                { en: "Who will help you with this project?", vi: "Ai sẽ giúp bạn với dự án này?", emoji: "🤝" },
+                { en: "Which subject do you like most?", vi: "Bạn thích môn học nào nhất?", emoji: "学科" },
+                { en: "Which color do you prefer, blue or red?", vi: "Bạn thích màu nào hơn, xanh hay đỏ?", emoji: "🎨" },
+                { en: "Which book is yours?", vi: "Cuốn sách nào là của bạn?", emoji: "📖" },
+                { en: "Which bus goes to the station?", vi: "Xe buýt nào đi đến nhà ga?", emoji: "🚌" },
+                { en: "Which dress do you want to buy?", vi: "Bạn muốn mua chiếc váy nào?", emoji: "👗" },
+                { en: "How are you today?", vi: "Hôm nay bạn thế nào?", emoji: "😊" },
+                { en: "How do you go to school?", vi: "Bạn đi học bằng cách nào?", emoji: "🚶‍♀️" },
+                { en: "How did you make this cake?", vi: "Bạn làm chiếc bánh này như thế nào?", emoji: "🎂" },
+                { en: "How can I use this app?", vi: "Tôi có thể dùng ứng dụng này thế nào?", emoji: "📱" },
+                { en: "How was your weekend?", vi: "Cuối tuần của bạn thế nào?", emoji: "🎉" },
+                { en: "How much is this T-shirt?", vi: "Cái áo thun này bao nhiêu tiền?", emoji: "👕" },
+                { en: "How much water do you drink a day?", vi: "Mỗi ngày bạn uống bao nhiêu nước?", emoji: "💧" },
+                { en: "How much sugar do you need?", vi: "Bạn cần bao nhiêu đường?", emoji: "🍬" },
+                { en: "How much does this bag cost?", vi: "Cái túi này giá bao nhiêu?", emoji: "👜" },
+                { en: "How much money do you have?", vi: "Bạn có bao nhiêu tiền?", emoji: "💰" },
+                { en: "How many students are there in your class?", vi: "Có bao nhiêu học sinh trong lớp bạn?", emoji: "👨‍👩‍👧‍👦" },
+                { en: "How many apples did you eat?", vi: "Bạn đã ăn bao nhiêu quả táo?", emoji: "🍎" },
+                { en: "How many subjects do you study?", vi: "Bạn học bao nhiêu môn?", emoji: "📚" },
+                { en: "How many books are on the shelf?", vi: "Có bao nhiêu cuốn sách trên kệ?", emoji: "📖" },
+                { en: "How many brothers do you have?", vi: "Bạn có bao nhiêu anh em trai?", emoji: "🧑" },
+                { en: "How far is it from your house to school?", vi: "Từ nhà bạn đến trường bao xa?", emoji: "🏫" },
+                { en: "How far can you run without stopping?", vi: "Bạn có thể chạy bao xa mà không dừng lại?", emoji: "🏃" },
+                { en: "How far is the beach from here?", vi: "Bãi biển cách đây bao xa?", emoji: "🏖️" },
+                { en: "How far do you live from the market?", vi: "Bạn sống cách chợ bao xa?", emoji: "🛒" },
+                { en: "How far did they travel last summer?", vi: "Hè trước họ đã đi được bao xa?", emoji: "✈️" },
+                { en: "How old are you?", vi: "Bạn bao nhiêu tuổi?", emoji: "🎂" },
+                { en: "How old is your brother?", vi: "Anh trai bạn bao nhiêu tuổi?", emoji: "👦" },
+                { en: "How old is this building?", vi: "Toà nhà này bao nhiêu năm tuổi rồi?", emoji: "🏢" },
+                { en: "How old was she when she met you?", vi: "Khi gặp bạn, cô ấy bao nhiêu tuổi?", emoji: "👩" },
+                { en: "How old will you be next year?", vi: "Năm sau bạn sẽ bao nhiêu tuổi?", emoji: "🎉" },
+                { en: "Are you a student?", vi: "Bạn có phải là học sinh không?", emoji: "🧑‍🎓" },
+                { en: "Did they go to the zoo last weekend?", vi: "Cuối tuần trước họ có đi sở thú không?", emoji: "🦓" },
+                { en: "Have you finished your homework yet?", vi: "Bạn đã làm xong bài tập chưa?", emoji: "📝" },
+                { en: "Will you help me with this exercise?", vi: "Bạn sẽ giúp tôi làm bài này chứ?", emoji: "🤝" },
+                { en: "Can you swim?", vi: "Bạn biết bơi không?", emoji: "🏊" },
+            ],
+            "Câu cảm thán (Exclamations)": [
+                { en: "What a beautiful day it is!", vi: "Thật là một ngày đẹp trời!", emoji: "☀️" },
+                { en: "What an interesting story!", vi: "Thật là một câu chuyện thú vị!", emoji: "📖" },
+                { en: "What a clever student she is!", vi: "Cô ấy thật là một học sinh thông minh!", emoji: "💡" },
+                { en: "How wonderful the flowers are!", vi: "Những bông hoa thật tuyệt vời!", emoji: "🌸" },
+                { en: "How fast he runs!", vi: "Anh ấy chạy nhanh thật!", emoji: "🏃" },
+                { en: "How kind you are!", vi: "Bạn thật tốt bụng!", emoji: "😊" },
+                { en: "So cute!", vi: "Dễ thương quá!", emoji: "😍" },
+                { en: "So funny!", vi: "Buồn cười quá!", emoji: "😂" },
+                { en: "So delicious!", vi: "Ngon quá trời!", emoji: "😋" },
+                { en: "Such a nice surprise!", vi: "Thật là một bất ngờ dễ thương!", emoji: "😮" },
+                { en: "Such beautiful weather!", vi: "Thời tiết thật đẹp biết bao!", emoji: "🌤️" },
+                { en: "Such an amazing performance!", vi: "Màn trình diễn thật tuyệt vời!", emoji: "🎉" },
+                { en: "How you've grown!", vi: "Bạn lớn nhanh thật đó!", emoji: "📈" },
+                { en: "How time flies!", vi: "Thời gian trôi nhanh thật!", emoji: "⏳" },
+                { en: "How we laughed that night!", vi: "Tối hôm đó chúng ta đã cười nhiều thật!", emoji: "🤣" },
+                { en: "What beautiful flowers!", vi: "Những bông hoa đẹp quá!", emoji: "💐" },
+                { en: "What delicious food!", vi: "Thức ăn ngon quá!", emoji: "🍲" },
+                { en: "What terrible weather!", vi: "Thời tiết tệ thật!", emoji: "⛈️" },
+            ],
+            "Cấu trúc 'It takes' & 'spend'": [
+                { en: "It takes her two hours to do her homework each day.", vi: "Mỗi ngày cô ấy mất hai tiếng để làm bài tập về nhà.", emoji: "🕑" },
+                { en: "It takes me 30 minutes to walk to school.", vi: "Tôi mất 30 phút để đi bộ đến trường.", emoji: "🚶" },
+                { en: "It takes them an hour to cook dinner.", vi: "Họ mất một giờ để nấu bữa tối.", emoji: "🍲" },
+                { en: "It takes my father fifteen minutes to drive to work.", vi: "Bố tôi mất 15 phút để lái xe đến chỗ làm.", emoji: "🚗" },
+                { en: "It takes us three days to finish this project.", vi: "Chúng tôi mất ba ngày để hoàn thành dự án này.", emoji: "🗓️" },
+                { en: "It takes you five minutes to get dressed.", vi: "Bạn mất năm phút để thay quần áo.", emoji: "👕" },
+                { en: "It takes him two hours to clean the house.", vi: "Anh ấy mất hai tiếng để dọn nhà.", emoji: "🧹" },
+                { en: "It takes students a week to prepare for the exam.", vi: "Học sinh mất một tuần để chuẩn bị cho kỳ thi.", emoji: "✍️" },
+                { en: "It takes my mom half an hour to water the plants.", vi: "Mẹ tôi mất nửa tiếng để tưới cây.", emoji: "🌱" },
+                { en: "It takes us a long time to learn a new language.", vi: "Chúng tôi mất nhiều thời gian để học một ngôn ngữ mới.", emoji: "🗣️" },
+                { en: "It took me an hour to finish the test.", vi: "Tôi mất một giờ để làm xong bài kiểm tra.", emoji: "💯" },
+                { en: "It will take us a month to build the house.", vi: "Chúng tôi sẽ mất một tháng để xây ngôi nhà.", emoji: "🏗️" },
+                { en: "My mother spends half an hour cooking lunch each day.", vi: "Mẹ tôi dành nửa tiếng mỗi ngày để nấu bữa trưa.", emoji: "👩‍🍳" },
+                { en: "I spend two hours studying English every evening.", vi: "Tôi dành hai tiếng mỗi tối để học tiếng Anh.", emoji: "📚" },
+                { en: "He spends a lot of time watching TV.", vi: "Anh ấy dành nhiều thời gian để xem TV.", emoji: "📺" },
+                { en: "She spends 30 minutes doing her homework.", vi: "Cô ấy dành 30 phút để làm bài tập về nhà.", emoji: "📝" },
+                { en: "We spend a whole day cleaning the house before Tet.", vi: "Chúng tôi dành cả ngày để dọn nhà trước Tết.", emoji: "🏠" },
+                { en: "They spend three hours practicing football after school.", vi: "Họ dành ba tiếng để tập bóng đá sau giờ học.", emoji: "⚽" },
+                { en: "My father spends an hour reading newspapers every morning.", vi: "Bố tôi dành một tiếng mỗi sáng để đọc báo.", emoji: "📰" },
+                { en: "The students spend much time preparing for the exam.", vi: "Học sinh dành nhiều thời gian để chuẩn bị cho kỳ thi.", emoji: "🧑‍🎓" },
+                { en: "I spend five minutes brushing my teeth every morning.", vi: "Tôi dành năm phút mỗi sáng để đánh răng.", emoji: "🦷" },
+                { en: "We spend our weekends visiting our grandparents.", vi: "Chúng tôi dành cuối tuần để thăm ông bà.", emoji: "👵" },
+            ],
+            "Tính từ + Giới từ (Adj + Prep)": [
+                { en: "She is interested in learning English.", vi: "Cô ấy thích học tiếng Anh.", emoji: "🇬🇧" },
+                { en: "I'm interested in reading comic books.", vi: "Tôi thích đọc truyện tranh.", emoji: "📖" },
+                { en: "They are interested in playing badminton after school.", vi: "Họ thích chơi cầu lông sau giờ học.", emoji: "🏸" },
+                { en: "He is interested in science and technology.", vi: "Anh ấy quan tâm đến khoa học và công nghệ.", emoji: "🔬" },
+                { en: "We are interested in watching movies together.", vi: "Chúng tôi thích xem phim cùng nhau.", emoji: "🎬" },
+                { en: "She is good at drawing pictures.", vi: "Cô ấy giỏi vẽ tranh.", emoji: "🎨" },
+                { en: "I'm good at solving math problems.", vi: "Tôi giỏi giải toán.", emoji: "🧮" },
+                { en: "They are good at playing football.", vi: "Họ giỏi chơi bóng đá.", emoji: "⚽" },
+                { en: "He is good at cooking delicious food.", vi: "Anh ấy nấu ăn ngon lắm.", emoji: "👨‍🍳" },
+                { en: "My sister is good at singing English songs.", vi: "Em gái tôi hát các bài hát tiếng Anh rất hay.", emoji: "🎤" },
+                { en: "She is afraid of snakes.", vi: "Cô ấy sợ rắn.", emoji: "🐍" },
+                { en: "I'm afraid of flying in an airplane.", vi: "Tôi sợ đi máy bay.", emoji: "✈️" },
+                { en: "He is afraid of making mistakes.", vi: "Anh ấy sợ mắc lỗi.", emoji: "😟" },
+                { en: "They are afraid of the dark.", vi: "Họ sợ bóng tối.", emoji: "🌃" },
+                { en: "My little brother is afraid of swimming in deep water.", vi: "Em trai tôi sợ bơi ở chỗ nước sâu.", emoji: "🏊" },
+                { en: "I'm bad at remembering names.", vi: "Tôi rất kém trong việc nhớ tên người khác.", emoji: "🤔" },
+                { en: "She is bad at playing basketball.", vi: "Cô ấy chơi bóng rổ không giỏi.", emoji: "🏀" },
+                { en: "They are bad at cooking.", vi: "Họ nấu ăn dở.", emoji: "🍳" },
+                { en: "He is bad at English grammar.", vi: "Anh ấy kém ngữ pháp tiếng Anh.", emoji: "📚" },
+                { en: "We are bad at singing in tune.", vi: "Chúng tôi hát không đúng nhịp.", emoji: "🎶" },
+                { en: "I'm bored with watching TV all day.", vi: "Tôi chán xem TV cả ngày rồi.", emoji: "📺" },
+                { en: "She is bored with doing the same thing every day.", vi: "Cô ấy chán phải làm cùng một việc mỗi ngày.", emoji: "🔄" },
+                { en: "They are bored with online classes.", vi: "Họ chán học trực tuyến rồi.", emoji: "💻" },
+                { en: "He is bored with this video game.", vi: "Anh ấy chán trò chơi điện tử này.", emoji: "🎮" },
+                { en: "We are bored with waiting for the bus.", vi: "Chúng tôi chán phải đợi xe buýt.", emoji: "🚏" },
+                { en: "I'm tired of studying all night.", vi: "Tôi mệt vì phải học suốt đêm.", emoji: "🦉" },
+                { en: "She is tired of listening to that song.", vi: "Cô ấy chán nghe bài hát đó rồi.", emoji: "🎵" },
+                { en: "They are tired of eating the same food every day.", vi: "Họ chán phải ăn cùng một món mỗi ngày.", emoji: "🍽️" },
+                { en: "He is tired of working without a break.", vi: "Anh ấy mệt mỏi vì làm việc không nghỉ.", emoji: "😩" },
+                { en: "We are tired of hearing bad news.", vi: "Chúng tôi chán nghe tin xấu rồi.", emoji: "📰" },
+                { en: "I'm excited about visiting Ha Long Bay this summer.", vi: "Tôi háo hức được đi thăm Vịnh Hạ Long vào mùa hè này.", emoji: "🏞️" },
+                { en: "She is excited about starting her new job.", vi: "Cô ấy rất phấn khích khi bắt đầu công việc mới.", emoji: "💼" },
+                { en: "They are excited about joining the school festival.", vi: "Họ rất háo hức tham gia lễ hội của trường.", emoji: "🎉" },
+                { en: "We are excited about learning English with a new teacher.", vi: "Chúng tôi háo hức học tiếng Anh với cô giáo mới.", emoji: "👩‍🏫" },
+                { en: "My brother is excited about playing in the football match tomorrow.", vi: "Em trai tôi háo hức được tham gia trận bóng ngày mai.", emoji: "⚽" },
+                { en: "I'm proud of being a Vietnamese student.", vi: "Tôi tự hào là một học sinh Việt Nam.", emoji: "🇻🇳" },
+                { en: "She is proud of her father, who is a doctor.", vi: "Cô ấy tự hào về cha mình, người là bác sĩ.", emoji: "👨‍⚕️" },
+                { en: "They are proud of winning the first prize.", vi: "Họ tự hào vì đã giành giải nhất.", emoji: "🏆" },
+                { en: "He is proud of helping his friends in need.", vi: "Anh ấy tự hào vì đã giúp đỡ bạn bè khi họ cần.", emoji: "🤝" },
+                { en: "We are proud of our school team.", vi: "Chúng tôi tự hào về đội tuyển của trường.", emoji: "🏅" },
+            ],
+            "Liên từ tương quan (Correlatives)": [
+                { en: "Neither my father nor my mother likes coffee.", vi: "Cả ba lẫn mẹ tôi đều không thích cà phê.", emoji: "☕" },
+                { en: "Neither Tom nor Jerry came to school yesterday.", vi: "Cả Tom và Jerry đều không đến trường hôm qua.", emoji: "🏫" },
+                { en: "Neither the teacher nor the students understood the question.", vi: "Cả cô giáo lẫn học sinh đều không hiểu câu hỏi.", emoji: "🤔" },
+                { en: "Either you or I must finish this work today.", vi: "Hoặc bạn hoặc tôi phải hoàn thành công việc này hôm nay.", emoji: "💪" },
+                { en: "You can either come with us or stay at home.", vi: "Bạn có thể đi cùng chúng tôi hoặc ở nhà.", emoji: "🏠" },
+                { en: "I love English. So do I.", vi: "Tôi thích tiếng Anh. Tôi cũng vậy.", emoji: "❤️" },
+                { en: "She can play the piano. So can I.", vi: "Cô ấy biết chơi piano. Tôi cũng biết.", emoji: "🎹" },
+                { en: "I like coffee. My friend does too.", vi: "Tôi thích cà phê. Bạn tôi cũng vậy.", emoji: "☕" },
+            ],
+            "Mệnh lệnh (Imperatives)": [
+                { en: "Open your book, please.", vi: "Làm ơn mở sách ra.", emoji: "📖" },
+                { en: "Sit down and be quiet.", vi: "Ngồi xuống và giữ trật tự.", emoji: "🤫" },
+                { en: "Turn off the lights when you leave.", vi: "Tắt đèn khi bạn rời khỏi nhé.", emoji: "💡" },
+                { en: "Don't touch that!", vi: "Đừng chạm vào cái đó!", emoji: "🚫" },
+                { en: "Don't be late for class.", vi: "Đừng đến lớp trễ.", emoji: "⏰" },
+                { en: "Don't talk during the test.", vi: "Đừng nói chuyện trong khi làm bài kiểm tra.", emoji: "✍️" },
+                { en: "Please pass me the salt.", vi: "Làm ơn đưa tôi lọ muối.", emoji: "🧂" },
+                { en: "Would you open the window, please?", vi: "Bạn có thể mở cửa sổ giúp tôi được không?", emoji: "🪟" },
+                { en: "Let's take a break for a few minutes.", vi: "Chúng ta nghỉ vài phút nhé.", emoji: "☕" },
+                { en: "Let's go for a walk.", vi: "Đi dạo một chút nhé.", emoji: "🚶‍♀️" },
+                { en: "Let's have lunch together.", vi: "Ăn trưa cùng nhau đi.", emoji: "🍱" },
+                { en: "Let's watch a movie tonight.", vi: "Xem phim tối nay nhé.", emoji: "🎬" },
+                { en: "The teacher told us to study harder.", vi: "Cô giáo bảo chúng tôi học chăm hơn.", emoji: "🧑‍🏫" },
+                { en: "Mom asked me to clean my room.", vi: "Mẹ bảo tôi dọn phòng.", emoji: "🧹" },
+                { en: "He told her not to go out at night.", vi: "Anh ấy bảo cô ấy đừng ra ngoài buổi tối.", emoji: "🌙" },
+                { en: "Do be careful when you cross the street!", vi: "Nhớ cẩn thận khi qua đường nhé!", emoji: "🚦" },
+                { en: "Do come in and have some tea.", vi: "Mời vào và uống chút trà nhé!", emoji: "🍵" },
+                { en: "Do try to finish your homework tonight.", vi: "Cố gắng hoàn thành bài tập tối nay nhé!", emoji: "💪" },
+            ],
+            "Câu điều kiện (Conditionals)": [
+                { en: "You shouldn't eat too much before you go to bed.", vi: "Bạn không nên ăn quá nhiều trước khi đi ngủ.", emoji: "🍔" },
+                { en: "Wear warm clothes or you'll catch a cold.", vi: "Mặc ấm vào, không thì bạn sẽ bị cảm đấy.", emoji: "🧥" },
+                { en: "Take an umbrella. It might rain later.", vi: "Mang theo ô đi. Có thể lát nữa sẽ mưa đấy.", emoji: "☂️" },
+                { en: "If you heat water, it boils.", vi: "Nếu bạn đun nước, nó sẽ sôi.", emoji: "🔥" },
+                { en: "If it rains, the ground gets wet.", vi: "Nếu trời mưa, mặt đất sẽ ướt.", emoji: "🌧️" },
+                { en: "If people don't eat, they die.", vi: "Nếu con người không ăn, họ sẽ chết.", emoji: "💀" },
+                { en: "If it rains tomorrow, we will stay at home.", vi: "Nếu ngày mai mưa, chúng tôi sẽ ở nhà.", emoji: "☔" },
+                { en: "If you study hard, you will pass the exam.", vi: "Nếu bạn học chăm, bạn sẽ vượt qua kỳ thi.", emoji: "🎓" },
+                { en: "If she comes early, we can go to the cinema.", vi: "Nếu cô ấy đến sớm, chúng ta có thể đi xem phim.", emoji: "🎬" },
+                { en: "If I were you, I would take that job.", vi: "Nếu tôi là bạn, tôi sẽ nhận công việc đó.", emoji: "💼" },
+                { en: "If he had more money, he could buy a car.", vi: "Nếu anh ấy có nhiều tiền hơn, anh ấy có thể mua xe hơi.", emoji: "🚗" },
+                { en: "If we lived near the beach, we would swim every day.", vi: "Nếu chúng tôi sống gần biển, chúng tôi sẽ bơi mỗi ngày.", emoji: "🏊" },
+                { en: "If I had studied harder, I would have passed the exam.", vi: "Nếu tôi học chăm hơn, tôi đã đậu kỳ thi rồi.", emoji: "💯" },
+                { en: "If she had left earlier, she wouldn't have missed the bus.", vi: "Nếu cô ấy đi sớm hơn, cô ấy đã không lỡ xe buýt.", emoji: "🚌" },
+                { en: "If it had rained, we would have stayed at home.", vi: "Nếu trời mưa, chúng tôi đã ở nhà rồi.", emoji: "🏠" },
+                { en: "If I had gone to bed earlier, I wouldn't be so tired now.", vi: "Nếu tôi đi ngủ sớm hơn, giờ tôi đã không mệt thế này.", emoji: "😴" },
+                { en: "If she were more careful, she wouldn't have made that mistake.", vi: "Nếu cô ấy cẩn thận hơn, cô ấy đã không mắc lỗi đó.", emoji: "🧐" },
+                { en: "If we had met before, we would be good friends now.", vi: "Nếu chúng ta gặp nhau sớm hơn, giờ chúng ta đã là bạn tốt rồi.", emoji: "🧑‍🤝‍🧑" },
+                { en: "Had I known the truth, I would have told you.", vi: "Nếu tôi biết sự thật, tôi đã nói cho bạn rồi.", emoji: "🤫" },
+                { en: "Were I you, I would take that chance.", vi: "Nếu tôi là bạn, tôi sẽ nắm lấy cơ hội đó.", emoji: "👍" },
+                { en: "Should it rain tomorrow, we will cancel the trip.", vi: "Nếu ngày mai trời mưa, chúng ta sẽ hủy chuyến đi.", emoji: "🚫" },
+            ],
+            "Động từ nguyên mẫu (Infinitives)": [
+                { en: "It's interesting to travel by plane.", vi: "Đi du lịch bằng máy bay thật thú vị.", emoji: "✈️" },
+                { en: "It's hard to learn Chinese.", vi: "Học tiếng Trung thật khó.", emoji: "🇨🇳" },
+                { en: "It's important to drink enough water every day.", vi: "Uống đủ nước mỗi ngày là điều quan trọng.", emoji: "💧" },
+                { en: "They are very happy to join the English club.", vi: "Họ rất vui khi tham gia câu lạc bộ tiếng Anh.", emoji: "🎉" },
+                { en: "She is ready to help her friends.", vi: "Cô ấy sẵn sàng giúp đỡ bạn bè.", emoji: "🤝" },
+                { en: "We are excited to see the new movie.", vi: "Chúng tôi háo hức xem bộ phim mới.", emoji: "🎬" },
+                { en: "The doctor told me to stop thinking.", vi: "Bác sĩ bảo tôi ngừng suy nghĩ quá nhiều.", emoji: "🧠" },
+                { en: "My parents want me to study harder.", vi: "Bố mẹ muốn tôi học chăm hơn.", emoji: "📚" },
+                { en: "The teacher asked us to open our books.", vi: "Cô giáo bảo chúng tôi mở sách ra.", emoji: "📖" },
+                { en: "I want to buy a new bike.", vi: "Tôi muốn mua một chiếc xe đạp mới.", emoji: "🚲" },
+                { en: "She decided to visit her grandparents.", vi: "Cô ấy quyết định đi thăm ông bà.", emoji: "👵" },
+                { en: "We hope to see you soon.", vi: "Chúng tôi hy vọng sẽ sớm gặp lại bạn.", emoji: "😊" },
+                { en: "He promised to help me with my homework.", vi: "Anh ấy hứa sẽ giúp tôi làm bài tập về nhà.", emoji: "🤝" },
+                { en: "They need to find a taxi.", vi: "Họ cần tìm một chiếc taxi.", emoji: "🚕" },
+                { en: "The teacher told us to be quiet.", vi: "Cô giáo bảo chúng tôi giữ trật tự.", emoji: "🤫" },
+                { en: "She asked him to close the door.", vi: "Cô ấy bảo anh ấy đóng cửa lại.", emoji: "🚪" },
+                { en: "He advised me to take a rest.", vi: "Anh ấy khuyên tôi nên nghỉ ngơi.", emoji: "😴" },
+                { en: "They encouraged us to try again.", vi: "Họ động viên chúng tôi thử lại lần nữa.", emoji: "💪" },
+                { en: "I'm afraid to speak in public.", vi: "Tôi sợ nói trước đám đông.", emoji: "😟" },
+                { en: "She's proud to be a good student.", vi: "Cô ấy tự hào là một học sinh giỏi.", emoji: "🏆" },
+                { en: "It's easy to learn English.", vi: "Học tiếng Anh thật dễ.", emoji: "👍" },
+                { en: "It's dangerous to drive too fast.", vi: "Lái xe quá nhanh rất nguy hiểm.", emoji: "🏎️" },
+                { en: "It's important to be kind to others.", vi: "Tốt bụng với người khác là điều quan trọng.", emoji: "❤️" },
+            ],
+            "Sở hữu (Possessives)": [
+                { en: "This is Tom's book.", vi: "Đây là quyển sách của Tom.", emoji: "📖" },
+                { en: "My sister's bag is on the chair.", vi: "Cái túi của chị tôi ở trên ghế.", emoji: "👜" },
+                { en: "The cat's tail is very long.", vi: "Đuôi của con mèo rất dài.", emoji: "🐈" },
+                { en: "The students' classroom is very clean.", vi: "Phòng học của các học sinh rất sạch.", emoji: "🏫" },
+                { en: "The teachers' meeting starts at 8 a.m.", vi: "Cuộc họp của các giáo viên bắt đầu lúc 8 giờ.", emoji: "⏰" },
+                { en: "The dogs' owner is kind.", vi: "Chủ của những con chó rất tốt bụng.", emoji: "🐕" },
+                { en: "The name of the book is Harry Potter.", vi: "Tên của cuốn sách là Harry Potter.", emoji: "📚" },
+                { en: "The color of the sky is blue.", vi: "Màu của bầu trời là xanh.", emoji: "🌌" },
+                { en: "The roof of the house is red.", vi: "Mái của ngôi nhà màu đỏ.", emoji: "🏠" },
+                { en: "This is my bag. That one is mine.", vi: "Đây là túi của tôi. Còn cái kia là của tôi.", emoji: "🎒" },
+                { en: "My house is small, but mine is cozy.", vi: "Nhà của tôi nhỏ, nhưng nó rất ấm cúng.", emoji: "🏡" },
+                { en: "This book is yours, not mine.", vi: "Cuốn sách này là của bạn, không phải của tôi.", emoji: "📖" },
+                { en: "Are these pencils yours?", vi: "Những cây bút chì này có phải của bạn không?", emoji: "✏️" },
+                { en: "Your car is blue. Yours is beautiful!", vi: "Xe của bạn màu xanh. Xe của bạn thật đẹp!", emoji: "🚗" },
+                { en: "That's his hat. The red one is also his.", vi: "Đó là mũ của anh ấy. Cái màu đỏ cũng là của anh ấy.", emoji: "🎩" },
+                { en: "This is his book. That one is his, too.", vi: "Đây là sách của anh ấy. Cuốn kia cũng vậy.", emoji: "📚" },
+                { en: "Is this jacket his?", vi: "Áo khoác này là của anh ấy à?", emoji: "🧥" },
+                { en: "That pink bag is hers.", vi: "Cái túi màu hồng đó là của cô ấy.", emoji: "👜" },
+                { en: "This notebook is hers, not mine.", vi: "Quyển vở này là của cô ấy, không phải của tôi.", emoji: "📓" },
+                { en: "Her room is tidy. Hers is always clean.", vi: "Phòng của cô ấy gọn gàng. Phòng của cô ấy lúc nào cũng sạch.", emoji: "🛏️" },
+                { en: "This classroom is ours.", vi: "Lớp học này là của chúng tôi.", emoji: "🏫" },
+                { en: "Our school is big, and ours is beautiful.", vi: "Trường của chúng tôi lớn, và rất đẹp.", emoji: "✨" },
+                { en: "The teacher said this project is ours.", vi: "Cô giáo nói dự án này là của chúng tôi.", emoji: "🧑‍🏫" },
+                { en: "Those bikes are theirs.", vi: "Những chiếc xe đạp đó là của họ.", emoji: "🚲" },
+                { en: "The red house is theirs, not ours.", vi: "Căn nhà màu đỏ là của họ, không phải của chúng tôi.", emoji: "🏠" },
+            ],
+            "Câu bị động (Passive Voice)": [
+                { en: "The book is read by many students.", vi: "Cuốn sách được nhiều học sinh đọc.", emoji: "📖" },
+                { en: "English is taught in every school.", vi: "Tiếng Anh được dạy ở mọi trường.", emoji: "🏫" },
+                { en: "The house is cleaned every day.", vi: "Ngôi nhà được dọn dẹp mỗi ngày.", emoji: "🧹" },
+                { en: "The cake was made by my mother.", vi: "Bánh được mẹ tôi làm.", emoji: "🎂" },
+                { en: "The letter was sent yesterday.", vi: "Lá thư đã được gửi hôm qua.", emoji: "✉️" },
+                { en: "The windows were cleaned last week.", vi: "Những chiếc cửa sổ đã được lau dọn tuần trước.", emoji: "🪟" },
+                { en: "The room is being painted now.", vi: "Phòng đang được sơn.", emoji: "🎨" },
+                { en: "The letters are being written by the students.", vi: "Những lá thư đang được học sinh viết.", emoji: "✍️" },
+                { en: "The food is being prepared in the kitchen.", vi: "Thức ăn đang được chuẩn bị trong bếp.", emoji: "🍲" },
+                { en: "The road was being repaired when we passed by.", vi: "Con đường đang được sửa khi chúng tôi đi qua.", emoji: "🚧" },
+                { en: "The homework was being checked by the teacher.", vi: "Bài tập đang được cô giáo kiểm tra.", emoji: "📝" },
+                { en: "The song was being sung by the choir.", vi: "Bài hát đang được hợp xướng thể hiện.", emoji: "🎤" },
+                { en: "The homework has been done by my brother.", vi: "Bài tập đã được anh trai tôi làm xong.", emoji: "✅" },
+                { en: "The movie has been watched by many people.", vi: "Bộ phim đã được nhiều người xem.", emoji: "🎬" },
+                { en: "The letters have been sent to the teachers.", vi: "Những lá thư đã được gửi đến các giáo viên.", emoji: "📬" },
+            ],
+            "Mệnh đề (Clauses)": [
+                { en: "I think that she is right.", vi: "Tôi nghĩ rằng cô ấy đúng.", emoji: "👍" },
+                { en: "He believes that we can win.", vi: "Anh ấy tin rằng chúng ta có thể thắng.", emoji: "🏆" },
+                { en: "We know that the Earth is round.", vi: "Chúng tôi biết rằng Trái Đất hình tròn.", emoji: "🌍" },
+                { en: "I don't know what she wants.", vi: "Tôi không biết cô ấy muốn gì.", emoji: "🤔" },
+                { en: "Tell me where you live.", vi: "Hãy nói tôi biết bạn sống ở đâu.", emoji: "🏠" },
+                { en: "I wonder why he is sad.", vi: "Tôi tự hỏi tại sao anh ấy buồn.", emoji: "😔" },
+                { en: "I don't know if he will come.", vi: "Tôi không biết anh ấy có đến không.", emoji: "🤷" },
+                { en: "She asked whether I liked coffee.", vi: "Cô ấy hỏi tôi có thích cà phê không.", emoji: "☕" },
+                { en: "Let's see if they are at home.", vi: "Hãy xem thử họ có ở nhà không nhé.", emoji: "👀" },
+                { en: "The man who is talking is my teacher.", vi: "Người đàn ông đang nói chuyện là thầy tôi.", emoji: "👨‍🏫" },
+                { en: "The girl whom you met is my cousin.", vi: "Cô gái mà bạn gặp là em họ tôi.", emoji: "👧" },
+                { en: "She's the student who won the prize.", vi: "Cô ấy là học sinh đã thắng giải.", emoji: "🏅" },
+                { en: "This is the book which I bought yesterday.", vi: "Đây là cuốn sách mà tôi đã mua hôm qua.", emoji: "📚" },
+                { en: "The car which is red belongs to my uncle.", vi: "Chiếc xe màu đỏ là của chú tôi.", emoji: "🚗" },
+                { en: "That's the movie which everyone loves.", vi: "Đó là bộ phim mà ai cũng yêu thích.", emoji: "🎬" },
+                { en: "The boy whose bike was stolen is crying.", vi: "Cậu bé có xe bị mất đang khóc.", emoji: "😢" },
+                { en: "She's the woman whose son is my friend.", vi: "Cô ấy là người phụ nữ có con trai là bạn tôi.", emoji: "👩‍👦" },
+                { en: "I met a man whose car broke down.", vi: "Tôi gặp một người đàn ông có xe bị hỏng.", emoji: "🛠️" },
+                { en: "This is the school where I studied.", vi: "Đây là ngôi trường nơi tôi đã học.", emoji: "🏫" },
+                { en: "That's the restaurant where we had dinner.", vi: "Đó là nhà hàng nơi chúng ta đã ăn tối.", emoji: "🍽️" },
+                { en: "I love the city where I was born.", vi: "Tôi yêu thành phố nơi tôi sinh ra.", emoji: "🏙️" },
+                { en: "I'll never forget the day when we met.", vi: "Tôi sẽ không quên ngày chúng ta gặp nhau.", emoji: "🗓️" },
+                { en: "Summer is the time when we travel.", vi: "Mùa hè là thời gian chúng ta đi du lịch.", emoji: "☀️" },
+                { en: "That was the year when she got married.", vi: "Đó là năm cô ấy kết hôn.", emoji: "💍" },
+                { en: "Do you know the reason why she cried?", vi: "Bạn có biết lý do tại sao cô ấy khóc không?", emoji: "😭" },
+                { en: "That's the reason why I was late.", vi: "Đó là lý do tại sao tôi đến trễ.", emoji: "⏰" },
+                { en: "I can't tell you the reason why he left.", vi: "Tôi không thể nói lý do tại sao anh ấy rời đi.", emoji: "👋" },
+            ],
+            "Đảo ngữ (Inversions)": [
+                { en: "Never have I seen such a beautiful sunset.", vi: "Tôi chưa bao giờ thấy hoàng hôn đẹp đến thế.", emoji: "🌅" },
+                { en: "Rarely do we have a chance to meet our old teacher.", vi: "Hiếm khi chúng tôi có cơ hội gặp lại thầy cũ.", emoji: "👨‍🏫" },
+                { en: "Hardly had she arrived when it started to rain.", vi: "Cô ấy vừa đến thì trời bắt đầu mưa.", emoji: "🌧️" },
+                { en: "Only after the meeting did I understand the problem.", vi: "Chỉ sau buổi họp tôi mới hiểu vấn đề.", emoji: "💡" },
+                { en: "Only when he left did I realize how kind he was.", vi: "Chỉ khi anh ấy rời đi tôi mới nhận ra anh ấy tốt thế nào.", emoji: "👋" },
+                { en: "Only by working hard can you succeed.", vi: "Chỉ bằng cách làm việc chăm chỉ bạn mới có thể thành công.", emoji: "💪" },
+                { en: "No sooner had I sat down than the phone rang.", vi: "Tôi vừa ngồi xuống thì điện thoại reo.", emoji: "📱" },
+                { en: "Hardly had we arrived when it started to rain.", vi: "Chúng tôi vừa đến thì trời bắt đầu mưa.", emoji: "☔" },
+                { en: "Scarcely had she finished her homework when her mom called.", vi: "Cô ấy vừa làm xong bài tập thì mẹ gọi.", emoji: "👩‍👧" },
+                { en: "Not only is she beautiful, but she is also intelligent.", vi: "Cô ấy không chỉ xinh đẹp mà còn thông minh.", emoji: "👩" },
+                { en: "Not only does he play the guitar, but he also sings very well.", vi: "Anh ấy không chỉ chơi guitar mà còn hát hay.", emoji: "🎸" },
+                { en: "Not only did they win the match, but they also broke a record.", vi: "Họ không chỉ thắng trận mà còn phá kỷ lục.", emoji: "🏆" },
+                { en: "So beautiful was the girl that everyone stared at her.", vi: "Cô gái xinh đến nỗi ai cũng nhìn.", emoji: "😍" },
+                { en: "So fast did he run that I couldn't catch him.", vi: "Anh ấy chạy nhanh đến mức tôi không đuổi kịp.", emoji: "🏃" },
+                { en: "Such was her anger that she couldn't speak.", vi: "Cơn giận của cô ấy lớn đến nỗi cô không thể nói được.", emoji: "😠" },
+                { en: "Had I known the truth, I would have told you.", vi: "Nếu tôi biết sự thật, tôi đã nói cho bạn rồi.", emoji: "🤫" },
+                { en: "Were I you, I would study harder.", vi: "Nếu tôi là bạn, tôi sẽ học chăm hơn.", emoji: "📚" },
+                { en: "Should it rain tomorrow, we will stay at home.", vi: "Nếu ngày mai mưa, chúng ta sẽ ở nhà.", emoji: "🏠" },
+                { en: "Here comes the bus!", vi: "Xe buýt tới rồi!", emoji: "🚌" },
+                { en: "There goes our teacher!", vi: "Thầy giáo của chúng ta đi kìa!", emoji: "👨‍🏫" },
+                { en: "Out rushed the children when the bell rang.", vi: "Khi chuông reo, bọn trẻ ùa ra ngoài.", emoji: "🔔" }
+            ],
+            "Liên từ (Conjunctions)": [
+                { en: "She likes tea and coffee.", vi: "Cô ấy thích cả trà và cà phê.", emoji: "☕" },
+                { en: "I play football and listen to music.", vi: "Tôi chơi bóng đá và nghe nhạc.", emoji: "⚽" },
+                { en: "He is kind and funny.", vi: "Anh ấy vừa tốt bụng vừa hài hước.", emoji: "😄" },
+                { en: "I like pizza, but I don't like pasta.", vi: "Tôi thích pizza nhưng không thích mì Ý.", emoji: "🍕" },
+                { en: "She tried hard, but she didn't succeed.", vi: "Cô ấy đã cố gắng, nhưng không thành công.", emoji: "😔" },
+                { en: "He is rich, but unhappy.", vi: "Anh ta giàu nhưng không hạnh phúc.", emoji: "💰" },
+                { en: "Do you want coffee or tea?", vi: "Bạn muốn cà phê hay trà?", emoji: "🤔" },
+                { en: "You can stay here or come with me.", vi: "Bạn có thể ở đây hoặc đi với tôi.", emoji: "👋" },
+                { en: "Hurry up or you'll miss the bus.", vi: "Nhanh lên kẻo lỡ xe buýt.", emoji: "🚌" },
+                { en: "It was raining, so we stayed at home.", vi: "Trời mưa nên chúng tôi ở nhà.", emoji: "🌧️" },
+                { en: "He was tired, so he went to bed early.", vi: "Anh ấy mệt nên đi ngủ sớm.", emoji: "😴" },
+                { en: "The weather was hot, so we went swimming.", vi: "Trời nóng nên chúng tôi đi bơi.", emoji: "🏊" },
+                { en: "I stayed home because it was raining.", vi: "Tôi ở nhà vì trời mưa.", emoji: "🏠" },
+                { en: "She didn't go to school because she was sick.", vi: "Cô ấy không đến trường vì bị ốm.", emoji: "🤒" },
+                { en: "We are happy because we passed the exam.", vi: "Chúng tôi vui vì đã vượt qua kỳ thi.", emoji: "🎉" },
+                { en: "Although it was cold, we went swimming.", vi: "Mặc dù trời lạnh, chúng tôi vẫn đi bơi.", emoji: "🏊‍♀️" },
+                { en: "Though he is young, he is very smart.", vi: "Mặc dù còn trẻ, anh ấy rất thông minh.", emoji: "🧠" },
+                { en: "Although she was tired, she finished her work.", vi: "Mặc dù mệt, cô ấy vẫn hoàn thành công việc.", emoji: "💪" },
+                { en: "If it rains, we will stay at home.", vi: "Nếu trời mưa, chúng tôi sẽ ở nhà.", emoji: "☔" },
+                { en: "If you study hard, you will pass the exam.", vi: "Nếu bạn học chăm, bạn sẽ đậu kỳ thi.", emoji: "🎓" },
+                { en: "If I see her, I'll tell her the news.", vi: "Nếu tôi gặp cô ấy, tôi sẽ nói tin đó.", emoji: "🗣️" },
+                { en: "When I was a child, I loved cartoons.", vi: "Khi tôi còn nhỏ, tôi thích phim hoạt hình.", emoji: "📺" },
+                { en: "While he was cooking, I was cleaning the floor.", vi: "Trong khi anh ấy nấu ăn, tôi lau nhà.", emoji: "🧹" },
+                { en: "When it rains, I stay home.", vi: "Khi trời mưa, tôi ở nhà.", emoji: "🏠" },
+                { en: "Wash your hands before you eat.", vi: "Rửa tay trước khi ăn.", emoji: "🙌" },
+                { en: "After he finished his homework, he watched TV.", vi: "Sau khi làm bài tập, anh ấy xem TV.", emoji: "🖥️" },
+                { en: "Brush your teeth before going to bed.", vi: "Đánh răng trước khi đi ngủ.", emoji: "🦷" },
+                { en: "You won't pass unless you study hard.", vi: "Bạn sẽ không qua nếu không học chăm.", emoji: "📚" },
+                { en: "I won't go unless she invites me.", vi: "Tôi sẽ không đi trừ khi cô ấy mời.", emoji: "💌" },
+                { en: "Unless it stops raining, we can't play football.", vi: "Trừ khi trời tạnh, chúng ta không thể đá bóng.", emoji: "⚽" },
+                { en: "Both my mom and my dad are teachers.", vi: "Cả mẹ và bố tôi đều là giáo viên.", emoji: "👨‍🏫" },
+                { en: "She can both sing and dance.", vi: "Cô ấy vừa có thể hát vừa có thể nhảy.", emoji: "💃" },
+                { en: "I like both tea and coffee.", vi: "Tôi thích cả trà và cà phê.", emoji: "☕" },
+                { en: "You can either come with us or stay here.", vi: "Bạn có thể đi cùng chúng tôi hoặc ở lại đây.", emoji: "👋" },
+                { en: "I will buy either a bike or a motorbike.", vi: "Tôi sẽ mua hoặc xe đạp hoặc xe máy.", emoji: "🏍️" },
+                { en: "Either you apologize or you leave.", vi: "Hoặc bạn xin lỗi hoặc bạn rời đi.", emoji: "🚶" },
+                { en: "Neither my brother nor my sister likes coffee.", vi: "Cả anh và chị tôi đều không thích cà phê.", emoji: "☕" },
+                { en: "She speaks neither English nor French.", vi: "Cô ấy không nói tiếng Anh cũng không nói tiếng Pháp.", emoji: "🗣️" },
+                { en: "I have neither time nor money.", vi: "Tôi chẳng có thời gian cũng chẳng có tiền.", emoji: "🤷" }
+            ],
+            "Danh từ & Cụm từ định lượng (Nouns & Quantifiers)": [
+                { en: "I have an apple and two oranges.", vi: "Tôi có một quả táo và hai quả cam.", emoji: "🍊" },
+                { en: "There are many students in the class.", vi: "Có nhiều học sinh trong lớp.", emoji: "👨‍👩‍👧‍👦" },
+                { en: "She bought a dress yesterday.", vi: "Cô ấy đã mua một chiếc váy hôm qua.", emoji: "👗" },
+                { en: "We need some water to drink.", vi: "Chúng ta cần ít nước để uống.", emoji: "💧" },
+                { en: "She doesn't eat much rice.", vi: "Cô ấy không ăn nhiều cơm.", emoji: "🍚" },
+                { en: "There isn't any milk in the fridge.", vi: "Trong tủ lạnh không còn sữa.", emoji: "🥛" },
+                { en: "I bought a chicken for dinner.", vi: "Tôi đã mua một con gà cho bữa tối.", emoji: "🍗" },
+                { en: "We need some chicken for the soup.", vi: "Chúng ta cần một ít thịt gà để nấu canh.", emoji: "🍲" },
+                { en: "Can I have two coffees, please?", vi: "Cho tôi hai tách cà phê, làm ơn.", emoji: "☕" },
+                { en: "The table is two meters long.", vi: "Cái bàn dài hai mét.", emoji: "📏" },
+                { en: "This box weighs five kilograms.", vi: "Cái hộp này nặng năm ký.", emoji: "⚖️" },
+                { en: "The bottle holds one liter of water.", vi: "Cái chai chứa được một lít nước.", emoji: "🍼" },
+                { en: "I have a few friends in this city.", vi: "Tôi có vài người bạn trong thành phố này.", emoji: "🏙️" },
+                { en: "There isn't much sugar left in the jar.", vi: "Không còn nhiều đường trong hũ nữa.", emoji: "🍬" },
+                { en: "I need a piece of paper to write a note.", vi: "Tôi cần một tờ giấy để viết ghi chú.", emoji: "📝" },
+                { en: "She gave me a piece of advice.", vi: "Cô ấy cho tôi một lời khuyên.", emoji: "💡" },
+                { en: "That's a beautiful piece of music.", vi: "Đó là một bản nhạc thật đẹp.", emoji: "🎶" },
+                { en: "He drank a bottle of water after running.", vi: "Anh ấy uống một chai nước sau khi chạy.", emoji: "🏃" },
+                { en: "She bought two bottles of milk at the store.", vi: "Cô ấy mua hai chai sữa ở cửa hàng.", emoji: "🥛" },
+                { en: "I usually drink a cup of coffee in the morning.", vi: "Tôi thường uống một tách cà phê vào buổi sáng.", emoji: "☕" },
+                { en: "She made me a cup of hot chocolate.", vi: "Cô ấy pha cho tôi một ly sô-cô-la nóng.", emoji: "🍫" },
+                { en: "I'd like a glass of orange juice, please.", vi: "Cho tôi một ly nước cam, làm ơn.", emoji: "🍊" },
+                { en: "She poured a glass of milk for her baby.", vi: "Cô ấy rót một ly sữa cho em bé.", emoji: "🍼" },
+                { en: "I had a slice of bread for breakfast.", vi: "Tôi ăn một lát bánh mì cho bữa sáng.", emoji: "🍞" },
+                { en: "She cut a slice of cheese for the sandwich.", vi: "Cô ấy cắt một lát phô mai cho bánh sandwich.", emoji: "🧀" },
+                { en: "I bought a bar of chocolate at the shop.", vi: "Tôi mua một thanh sô-cô-la ở cửa hàng.", emoji: "🍫" },
+                { en: "He gave me a bar of soap.", vi: "Anh ấy đưa tôi một bánh xà phòng.", emoji: "🧼" },
+                { en: "She bought a loaf of bread for breakfast.", vi: "Cô ấy mua một ổ bánh mì cho bữa sáng.", emoji: "🥖" },
+                { en: "We need two loaves of bread for the picnic.", vi: "Chúng ta cần hai ổ bánh mì cho buổi dã ngoại.", emoji: "🧺" },
+                { en: "I ate a bowl of noodles for lunch.", vi: "Tôi ăn một tô mì cho bữa trưa.", emoji: "🍜" },
+                { en: "She cooked a bowl of soup for her mother.", vi: "Cô ấy nấu một bát súp cho mẹ.", emoji: "🍲" },
+                { en: "I bought a can of coke.", vi: "Tôi mua một lon coca.", emoji: "🥤" },
+                { en: "She opened a can of orange juice.", vi: "Cô ấy mở một lon nước cam.", emoji: "🍊" },
+                { en: "I need a kilo of sugar.", vi: "Tôi cần một ký đường.", emoji: "⚖️" },
+                { en: "The recipe calls for 200 grams of butter.", vi: "Công thức cần 200 gam bơ.", emoji: "🧈" },
+                { en: "There isn't a drop of water left in the bottle.", vi: "Không còn giọt nước nào trong chai.", emoji: "💧" },
+                { en: "He spilled a few drops of milk on the table.", vi: "Anh ấy làm đổ vài giọt sữa lên bàn.", emoji: "🥛" },
+                { en: "I need a bit of help with my homework.", vi: "Tôi cần một chút giúp đỡ với bài tập về nhà.", emoji: "🤝" },
+                { en: "She gave me a bit of advice.", vi: "Cô ấy cho tôi một lời khuyên nhỏ.", emoji: "💡" },
+                { en: "There isn't a grain of rice left in the bowl.", vi: "Không còn hạt cơm nào trong bát.", emoji: "🍚" },
+                { en: "She found a grain of sand in her shoe.", vi: "Cô ấy thấy một hạt cát trong giày.", emoji: "🏖️" },
+                { en: "A ray of light came through the window.", vi: "Một tia sáng chiếu qua cửa sổ.", emoji: "☀️" },
+                { en: "The news gave us a ray of hope.", vi: "Tin đó mang lại cho chúng tôi một tia hy vọng.", emoji: "📰" },
+                { en: "A flash of lightning lit up the sky.", vi: "Một tia chớp lóe sáng bầu trời.", emoji: "⚡" },
+                { en: "There was a flash of anger in his eyes.", vi: "Có một thoáng giận dữ trong mắt anh ta.", emoji: "😠" },
+                { en: "Please take a sheet of paper.", vi: "Làm ơn lấy một tờ giấy.", emoji: "📄" },
+                { en: "The lake was covered with a sheet of ice.", vi: "Hồ bị phủ một lớp băng.", emoji: "🧊" },
+                { en: "His speech had a touch of humor.", vi: "Bài phát biểu của anh ấy có chút hài hước.", emoji: "😂" },
+                { en: "There was a touch of sadness in her voice.", vi: "Trong giọng cô ấy có chút buồn.", emoji: "😔" },
+                { en: "We heard a clap of thunder outside.", vi: "Chúng tôi nghe thấy một tiếng sấm ngoài trời.", emoji: "⛈️" },
+                { en: "The audience gave a clap of applause.", vi: "Khán giả vỗ tay một tràng.", emoji: "👏" },
+                { en: "There's a speck of dust on the table.", vi: "Có một hạt bụi nhỏ trên bàn.", emoji: "✨" },
+                { en: "I saw a speck of light in the distance.", vi: "Tôi thấy một đốm sáng ở xa xa.", emoji: "💡" },
+                { en: "I have lived here for five years.", vi: "Tôi đã sống ở đây được năm năm.", emoji: "🗓️" },
+                { en: "She's been studying English since 2020.", vi: "Cô ấy đã học tiếng Anh từ năm 2020.", emoji: "🇬🇧" },
+                { en: "We stayed in Da Nang for three days.", vi: "Chúng tôi ở Đà Nẵng trong ba ngày.", emoji: "✈️" },
+             ],
+             "Cụm từ Cố định & Collocations": [
+                { en: "Make a decision before it's too late.", vi: "Hãy đưa ra quyết định trước khi quá muộn.", emoji: "🤔" },
+                { en: "She caught a cold after walking in the rain.", vi: "Cô ấy bị cảm lạnh sau khi đi trong mưa.", emoji: "🤧" },
+                { en: "They take a break every two hours.", vi: "Họ nghỉ giải lao sau mỗi hai tiếng.", emoji: "☕" },
+                { en: "He did his homework before dinner.", vi: "Cậu ấy làm bài tập về nhà trước bữa tối.", emoji: "📝" },
+                { en: "Let's have a look at this picture.", vi: "Hãy xem thử bức hình này nhé.", emoji: "🖼️" },
+                { en: "She runs a business with her brother.", vi: "Cô ấy kinh doanh cùng anh trai của mình.", emoji: "💼" },
+                { en: "It's up to you.", vi: "Tùy bạn quyết định.", emoji: "🤷" },
+                { en: "By the way, how was your weekend?", vi: "Nhân tiện, cuối tuần của bạn thế nào?", emoji: "👋" },
+                { en: "Long time no see!", vi: "Lâu rồi không gặp!", emoji: "🤗" },
+                { en: "Take it easy.", vi: "Bình tĩnh / Đừng căng thẳng.", emoji: "😌" },
+                { en: "Better late than never.", vi: "Muộn còn hơn không.", emoji: "👍" },
+                { en: "You've got to be kidding!", vi: "Bạn đùa tôi à!", emoji: "😮" },
+                { en: "I have a headache, so I need to rest.", vi: "Tôi bị nhức đầu, nên cần nghỉ ngơi.", emoji: "😫" },
+                { en: "She has a toothache, and she's going to the dentist.", vi: "Cô ấy bị đau răng, nên sẽ đi nha sĩ.", emoji: "🦷" },
+                { en: "He has a cold, but he still goes to work.", vi: "Anh ấy bị cảm lạnh, nhưng vẫn đi làm.", emoji: "🤒" },
+                { en: "I always do my homework after dinner.", vi: "Tôi luôn làm bài tập về nhà sau bữa tối.", emoji: "✍️" },
+                { en: "My mom does the housework every morning.", vi: "Mẹ tôi làm việc nhà mỗi buổi sáng.", emoji: "🧹" },
+                { en: "You should take medicine if you feel sick.", vi: "Bạn nên uống thuốc nếu thấy mệt.", emoji: "💊" },
+                { en: "The doctor will perform surgery on the patient tomorrow.", vi: "Bác sĩ sẽ phẫu thuật cho bệnh nhân vào ngày mai.", emoji: "🧑‍⚕️" },
+                { en: "I usually go to bed at ten o'clock.", vi: "Tôi thường đi ngủ lúc 10 giờ.", emoji: "🕙" },
+                { en: "Let's go out and have some fun tonight.", vi: "Tối nay ra ngoài chơi đi cho vui nhé.", emoji: "🎉" },
+                { en: "We went to the zoo last Sunday.", vi: "Chúng tôi đã đi sở thú vào Chủ nhật tuần trước.", emoji: "🦓" },
+            ],
+            "Danh động từ (Gerunds)": [
+                { en: "Thank you for helping me with my homework.", vi: "Cảm ơn bạn đã giúp tôi làm bài tập.", emoji: "🙏" },
+                { en: "Thank you for coming to my birthday party.", vi: "Cảm ơn bạn đã đến dự tiệc sinh nhật của tôi.", emoji: "🎉" },
+                { en: "Thank you for waiting for me.", vi: "Cảm ơn bạn đã đợi tôi.", emoji: "⏳" },
+                { en: "Thank you for calling me last night.", vi: "Cảm ơn bạn đã gọi cho tôi tối qua.", emoji: "📞" },
+                { en: "Thank you for cleaning the classroom.", vi: "Cảm ơn bạn đã dọn lớp học.", emoji: "🧹" },
+                { en: "My mother spends half an hour cooking lunch each day.", vi: "Mẹ tôi dành nửa tiếng mỗi ngày để nấu bữa trưa.", emoji: "👩‍🍳" },
+                { en: "I spend two hours studying English every evening.", vi: "Tôi dành hai tiếng mỗi tối để học tiếng Anh.", emoji: "📚" },
+                { en: "He spends a lot of time watching TV.", vi: "Anh ấy dành nhiều thời gian để xem TV.", emoji: "📺" },
+                { en: "She spends 30 minutes doing her homework.", vi: "Cô ấy dành 30 phút để làm bài tập về nhà.", emoji: "📝" },
+                { en: "We spend a whole day cleaning the house before Tet.", vi: "Chúng tôi dành cả ngày để dọn nhà trước Tết.", emoji: "🏠" },
+                { en: "They spend three hours practicing football after school.", vi: "Họ dành ba tiếng để tập bóng đá sau giờ học.", emoji: "⚽" },
+                { en: "My father spends an hour reading newspapers every morning.", vi: "Bố tôi dành một tiếng mỗi sáng để đọc báo.", emoji: "📰" },
+                { en: "The students spend much time preparing for the exam.", vi: "Học sinh dành nhiều thời gian để chuẩn bị cho kỳ thi.", emoji: "✍️" },
+                { en: "I spend five minutes brushing my teeth every morning.", vi: "Tôi dành năm phút mỗi sáng để đánh răng.", emoji: "🦷" },
+                { en: "We spend our weekends visiting our grandparents.", vi: "Chúng tôi dành cuối tuần để thăm ông bà.", emoji: "👵" },
+            ],
+            "Trợ động từ (Modal & Auxiliary Verbs)": [
+                { en: "Are you a student?", vi: "Bạn có phải là học sinh không?", emoji: "🧑‍🎓" },
+                { en: "Is she at home now?", vi: "Cô ấy có ở nhà bây giờ không?", emoji: "🏠" },
+                { en: "Were they late for school yesterday?", vi: "Hôm qua họ có đến trường trễ không?", emoji: "🏫" },
+                { en: "Do you like English?", vi: "Bạn có thích tiếng Anh không?", emoji: "🇬🇧" },
+                { en: "Does he play football every Sunday?", vi: "Anh ấy có chơi bóng đá vào mỗi Chủ nhật không?", emoji: "⚽" },
+                { en: "Did they go to the zoo last weekend?", vi: "Cuối tuần trước họ có đi sở thú không?", emoji: "🦓" },
+                { en: "Have you finished your homework yet?", vi: "Bạn đã làm xong bài tập chưa?", emoji: "📝" },
+                { en: "Has she ever been to Hanoi?", vi: "Cô ấy đã từng đến Hà Nội chưa?", emoji: "🇻🇳" },
+                { en: "Had they left before you arrived?", vi: "Họ đã rời đi trước khi bạn đến à?", emoji: "✈️" },
+                { en: "Will you help me with this exercise?", vi: "Bạn sẽ giúp tôi làm bài này chứ?", emoji: "🤝" },
+                { en: "Would you like some tea?", vi: "Bạn có muốn dùng chút trà không?", emoji: "🍵" },
+                { en: "Will they come to the party tonight?", vi: "Họ sẽ đến dự tiệc tối nay chứ?", emoji: "🎉" },
+                { en: "Can you swim?", vi: "Bạn biết bơi không?", emoji: "🏊" },
+                { en: "Could you help me carry this box?", vi: "Bạn có thể giúp tôi mang cái hộp này được không?", emoji: "📦" },
+                { en: "Can they speak English well?", vi: "Họ có nói tiếng Anh giỏi không?", emoji: "🗣️" },
+                { en: "May I come in?", vi: "Tôi có thể vào được không?", emoji: "🚪" },
+                { en: "Might it rain this afternoon?", vi: "Chiều nay có thể mưa không nhỉ?", emoji: "☔" },
+                { en: "May we borrow your book?", vi: "Chúng tôi có thể mượn sách của bạn không?", emoji: "📖" },
+                { en: "Shall we go out for a walk?", vi: "Chúng ta đi dạo nhé?", emoji: "🚶‍♀️" },
+                { en: "Should I open the window?", vi: "Tôi có nên mở cửa sổ không?", emoji: "🪟" },
+                { en: "Should he study harder for the exam?", vi: "Anh ấy có nên học chăm hơn cho kỳ thi không?", emoji: "📚" },
+                { en: "Must we wear uniforms at school?", vi: "Chúng ta có phải mặc đồng phục ở trường không?", emoji: "👔" },
+                { en: "Do you have to get up early tomorrow?", vi: "Ngày mai bạn có phải dậy sớm không?", emoji: "⏰" },
+                { en: "Must I finish this homework today?", vi: "Tôi có phải làm xong bài tập này hôm nay không?", emoji: "✍️" },
+            ]
+        };
+
+        // --- HOOKS ---
+        function useSpeechSynthesis() {
+            const [isSpeaking, setIsSpeaking] = useState(false);
+            const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
+
+            const speak = useCallback((text, options = {}) => {
+                if (!synth) return;
+
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'en-US';
+                utterance.rate = options.rate || 0.9;
+                utterance.onstart = () => setIsSpeaking(true);
+                utterance.onend = () => {
+                    setIsSpeaking(false);
+                    if (options.onEnd) options.onEnd();
+                };
+                utterance.onerror = () => {
+                    setIsSpeaking(false);
+                };
+
+                if (synth.speaking) {
+                    synth.cancel();
+                }
+
+                setTimeout(() => synth.speak(utterance), 100);
+
+            }, [synth]);
+
+            const cancel = useCallback(() => {
+                if (synth) {
+                    synth.cancel();
+                    setIsSpeaking(false);
+                }
+            }, [synth]);
+
+            useEffect(() => {
+                return () => cancel();
+            }, [cancel]);
+
+            return { isSpeaking, speak, cancel };
+        }
+
+        // --- COMPONENTS ---
+        const Fireworks = () => {
+            const canvasRef = useRef(null);
+            const animationFrameId = useRef(null);
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return;
+
+                let width = canvas.width = window.innerWidth;
+                let height = canvas.height = window.innerHeight;
+                let fireworks = [];
+                let particles = [];
+                let hue = 120;
+
+                function random(min, max) { return Math.random() * (max - min) + min; }
+
+                class Firework {
+                    constructor(sx, sy, tx, ty) {
+                        this.x = sx; this.y = sy; this.sx = sx; this.sy = sy;
+                        this.tx = tx; this.ty = ty;
+                        this.distanceToTarget = Math.sqrt(Math.pow(tx - sx, 2) + Math.pow(ty - sy, 2));
+                        this.distanceTraveled = 0;
+                        this.coordinates = [];
+                        this.coordinateCount = 3;
+                        while (this.coordinateCount--) { this.coordinates.push([this.x, this.y]); }
+                        this.angle = Math.atan2(ty - sy, tx - sx);
+                        this.speed = 2; this.acceleration = 1.05;
+                        this.brightness = random(50, 70);
+                        this.targetRadius = 1;
+                    }
+
+                    update(index) {
+                        this.coordinates.pop();
+                        this.coordinates.unshift([this.x, this.y]);
+                        this.speed *= this.acceleration;
+                        const vx = Math.cos(this.angle) * this.speed;
+                        const vy = Math.sin(this.angle) * this.speed;
+                        this.distanceTraveled = Math.sqrt(Math.pow(this.x + vx - this.sx, 2) + Math.pow(this.y + vy - this.sy, 2));
+                        if (this.distanceTraveled >= this.distanceToTarget) {
+                            fireworks.splice(index, 1);
+                            for (let i = 0; i < 30; i++) { particles.push(new Particle(this.tx, this.ty)); }
+                        } else { this.x += vx; this.y += vy; }
+                    }
+
+                    draw() {
+                        ctx.beginPath();
+                        ctx.moveTo(this.coordinates[this.coordinates.length - 1][0], this.coordinates[this.coordinates.length - 1][1]);
+                        ctx.lineTo(this.x, this.y);
+                        ctx.strokeStyle = `hsl(${hue}, 100%, ${this.brightness}%)`;
+                        ctx.stroke();
+                    }
+                }
+
+                class Particle {
+                    constructor(x, y) {
+                        this.x = x; this.y = y;
+                        this.coordinates = [];
+                        this.coordinateCount = 5;
+                        while (this.coordinateCount--) { this.coordinates.push([this.x, this.y]); }
+                        this.angle = random(0, Math.PI * 2);
+                        this.speed = random(1, 10);
+                        this.friction = 0.95; this.gravity = 1;
+                        this.hue = random(hue - 20, hue + 20);
+                        this.brightness = random(50, 80);
+                        this.alpha = 1;
+                        this.decay = random(0.015, 0.03);
+                    }
+                    update(index) {
+                        this.coordinates.pop();
+                        this.coordinates.unshift([this.x, this.y]);
+                        this.speed *= this.friction;
+                        this.x += Math.cos(this.angle) * this.speed;
+                        this.y += Math.sin(this.angle) * this.speed + this.gravity;
+                        this.alpha -= this.decay;
+                        if (this.alpha <= this.decay) { particles.splice(index, 1); }
+                    }
+                    draw() {
+                        ctx.beginPath();
+                        ctx.moveTo(this.coordinates[this.coordinates.length - 1][0], this.coordinates[this.coordinates.length - 1][1]);
+                        ctx.lineTo(this.x, this.y);
+                        ctx.strokeStyle = `hsla(${this.hue}, 100%, ${this.brightness}%, ${this.alpha})`;
+                        ctx.stroke();
+                    }
+                }
+
+                function loop() {
+                    if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+                    animationFrameId.current = requestAnimationFrame(loop);
+                    hue += 0.5;
+                    ctx.globalCompositeOperation = 'destination-out';
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                    ctx.fillRect(0, 0, width, height);
+                    ctx.globalCompositeOperation = 'lighter';
+                    if (Math.random() < 0.05) {
+                        fireworks.push(new Firework(width / 2, height, random(0, width), random(0, height / 2)));
+                    }
+                    fireworks.forEach((f, i) => { f.update(i); f.draw(); });
+                    particles.forEach((p, i) => { p.update(i); p.draw(); });
+                }
+
+                const handleResize = () => {
+                    width = canvas.width = window.innerWidth;
+                    height = canvas.height = window.innerHeight;
+                };
+
+                window.addEventListener('resize', handleResize);
+                loop();
+
+                return () => {
+                    if(animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+                    window.removeEventListener('resize', handleResize);
+                };
+            }, []);
+
+            return <canvas ref={canvasRef} className="fixed top-0 left-0 w-full h-full pointer-events-none z-50"></canvas>;
+        };
+
+        function StartScreen({ onStart }) {
+            const [playerName, setPlayerName] = useState('');
+            const [error, setError] = useState('');
+
+            const handleStart = () => {
+                if (playerName.trim()) {
+                    onStart(playerName.trim());
+                } else {
+                    setError('Vui lòng nhập tên của bạn!');
+                    setTimeout(() => setError(''), 3000);
+                }
+            };
+
+            return (
+                <div className="flex flex-col items-center gap-4 w-full">
+                    <input
+                        type="text"
+                        placeholder="Nhập tên của bạn..."
+                        value={playerName}
+                        onChange={(e) => setPlayerName(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleStart()}
+                        className="w-full max-w-sm text-center p-3 text-xl font-sans border-2 border-[#ec407a] rounded-xl focus:outline-none focus:ring-4 focus:ring-pink-200 transition"
+                    />
+                    <button
+                        onClick={handleStart}
+                        className="w-full max-w-sm p-4 text-xl text-white font-bold bg-[#4caf50] rounded-2xl shadow-lg hover:bg-[#388e3c] transform hover:-translate-y-0.5 transition"
+                    >
+                        Bắt đầu
+                    </button>
+                    {error && <div className="text-[#f44336] font-semibold mt-2">{error}</div>}
+                </div>
+            );
+        };
+
+        function TopicSelectionScreen({ onSelectTopic }) {
+            const TOPIC_COLORS = [
+                'bg-red-500 hover:bg-red-600',
+                'bg-blue-500 hover:bg-blue-600',
+                'bg-green-500 hover:bg-green-600',
+                'bg-yellow-500 hover:bg-yellow-600',
+                'bg-purple-500 hover:bg-purple-600',
+                'bg-pink-500 hover:bg-pink-600',
+                'bg-indigo-500 hover:bg-indigo-600',
+                'bg-teal-500 hover:bg-teal-600',
+                'bg-orange-500 hover:bg-orange-600',
+                'bg-gray-500 hover:bg-gray-600',
+            ];
+
+            return (
+                <div className="flex flex-col items-center gap-5 w-full">
+                    <h2 className="text-xl md:text-2xl font-semibold text-gray-700">Chọn một chủ đề để bắt đầu</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-h-[60vh] overflow-y-auto p-2">
+                        {Object.keys(TOPICS).map((topic, index) => (
+                            <button
+                                key={topic}
+                                className={`p-4 text-white font-bold rounded-2xl shadow-lg transform hover:-translate-y-0.5 transition-transform text-base ${TOPIC_COLORS[index % TOPIC_COLORS.length]}`}
+                                onClick={() => onSelectTopic(topic)}
+                            >
+                                {`${topic} (${TOPICS[topic].length} câu)`}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        function ReviewErrorsScreen({ errors, onSelectTopic }) {
+            const renderDiff = (correct, user) => {
+                const diff = [];
+                const maxLength = Math.max(correct.length, user.length);
+                for (let i = 0; i < maxLength; i++) {
+                    if (correct[i] !== user[i]) {
+                        diff.push(<span key={i} className="font-bold text-red-700 underline bg-red-100">{user[i] || ''}</span>);
+                    } else {
+                        diff.push(<span key={i}>{user[i]}</span>);
+                    }
+                }
+                return diff;
+            };
+
+            return (
+                <div className="flex flex-col items-center gap-4 w-full">
+                    <h2 className="text-xl md:text-2xl font-semibold text-gray-700">Xem lại các câu trả lời sai</h2>
+                    <ul className="list-none p-0 w-full max-h-[50vh] overflow-y-auto border border-gray-300 rounded-lg bg-white">
+                        {errors.map((error, index) => (
+                            <li key={index} className="p-4 border-b border-gray-200 text-left last:border-b-0">
+                                <div className="font-bold text-sm text-gray-600">Đáp án đúng:</div>
+                                <p className="text-[#4caf50] break-words text-lg">{error.correctAnswer}</p>
+                                <div className="font-bold text-sm text-gray-600 mt-2">Câu trả lời của bạn:</div>
+                                <p className="text-[#f44336] break-words text-lg">{renderDiff(error.correctAnswer, error.userAnswer)}</p>
+                            </li>
+                        ))}
+                    </ul>
+                    <button
+                        className="w-full max-w-md p-4 mt-2 text-lg text-white font-bold bg-[#ec407a] rounded-2xl shadow-lg hover:bg-[#c2185b] transform hover:-translate-y-0.5 transition"
+                        onClick={onSelectTopic}
+                    >
+                        Chọn chủ đề khác
+                    </button>
+                </div>
+            );
+        };
+
+        function CongratsScreen({ score, total, correctCount, playerName, topic, errors, onPlayAgain, onSelectTopic, onReviewErrors }) {
+            return (
+                <div className="flex flex-col items-center gap-4 w-full">
+                    <div className="text-2xl text-[#4caf50] font-bold leading-tight">
+                        Chúc mừng <strong className="text-pink-500">{playerName}</strong>!<br />
+                        Bạn đã đạt {score} điểm, hoàn thành đúng {correctCount}/{total} câu trong "{topic}".
+                    </div>
+                    {errors.length > 0 && (
+                        <button
+                            className="w-full max-w-md p-4 text-lg text-gray-800 font-bold bg-[#ffc107] rounded-2xl shadow-lg hover:bg-amber-400 transform hover:-translate-y-0.5 transition"
+                            onClick={onReviewErrors}
+                        >
+                            Xem lại lỗi sai ({errors.length})
+                        </button>
+                    )}
+                    <button
+                        className="w-full max-w-md p-4 text-lg text-white font-bold bg-[#4caf50] rounded-2xl shadow-lg hover:bg-[#388e3c] transform hover:-translate-y-0.5 transition"
+                        onClick={onPlayAgain}
+                    >
+                        Chơi lại chủ đề này
+                    </button>
+                    <button
+                        className="w-full max-w-md p-4 text-lg text-white font-bold bg-[#c2185b] rounded-2xl shadow-lg hover:bg-pink-800 transform hover:-translate-y-0.5 transition"
+                        onClick={onSelectTopic}
+                    >
+                        Chọn chủ đề khác
+                    </button>
+                    <Fireworks />
+                </div>
+            );
+        };
+
+        function GameScreen({ sentences, topicName, onGameEnd, onBackToTopics }) {
+            const [currentIndex, setCurrentIndex] = useState(0);
+            const [score, setScore] = useState(0);
+            const [completed, setCompleted] = useState(0);
+            const [correctCount, setCorrectCount] = useState(0);
+            const [mistakeCount, setMistakeCount] = useState(0);
+            const [userAnswer, setUserAnswer] = useState('');
+            const [message, setMessage] = useState('');
+            const [isCorrect, setIsCorrect] = useState(null);
+            const [isLocked, setIsLocked] = useState(false);
+            const [errors, setErrors] = useState([]);
+            const [isHintVisible, setIsHintVisible] = useState(false);
+
+            const { isSpeaking, speak, cancel } = useSpeechSynthesis();
+            const inputRef = useRef(null);
+            const nextSentenceTimeoutRef = useRef(null);
+
+            const currentSentence = sentences[currentIndex];
+
+            const startNewSentence = useCallback((index) => {
+                cancel();
+                if (nextSentenceTimeoutRef.current) clearTimeout(nextSentenceTimeoutRef.current);
+
+                if (index >= sentences.length) return;
+
+                setCurrentIndex(index);
+                setUserAnswer('');
+                setMistakeCount(0);
+                setMessage('');
+                setIsCorrect(null);
+                setIsLocked(false);
+                inputRef.current?.focus();
+
+                const sentenceToSpeak = sentences[index].en;
+                speak(sentenceToSpeak, { onEnd: () => speak(sentenceToSpeak) });
+            }, [sentences, cancel, speak]);
+
+            useEffect(() => {
+                startNewSentence(0);
+                return () => {
+                    cancel();
+                    if (nextSentenceTimeoutRef.current) clearTimeout(nextSentenceTimeoutRef.current);
+                };
+            }, [sentences, startNewSentence]);
+
+            const handleCheckAnswer = useCallback(() => {
+                if (isLocked) return;
+
+                const cleanedUserAnswer = userAnswer.trim();
+                const correctAnswer = currentSentence.en;
+                const isLastSentence = currentIndex === sentences.length - 1;
+
+                if (cleanedUserAnswer === correctAnswer) {
+                    setIsCorrect(true);
+                    setIsLocked(true);
+                    setMessage('Chính xác! +10 điểm.');
+                    
+                    const newScore = score + 10;
+                    const newCorrectCount = correctCount + 1;
+                    const newCompleted = completed + 1;
+
+                    setScore(newScore);
+                    setCorrectCount(newCorrectCount);
+                    setCompleted(newCompleted);
+                    cancel();
+
+                    speak(correctAnswer, {
+                        onEnd: () => {
+                            if (isLastSentence) {
+                                onGameEnd({ score: newScore, correctCount: newCorrectCount, errors });
+                            } else {
+                                nextSentenceTimeoutRef.current = window.setTimeout(() => startNewSentence(currentIndex + 1), 2000);
+                            }
+                        }
+                    });
+                } else {
+                    const newMistakeCount = mistakeCount + 1;
+                    setMistakeCount(newMistakeCount);
+                    setIsCorrect(false);
+
+                    if (newMistakeCount >= 3) {
+                        setIsLocked(true);
+                        setMessage(`Bạn đã sai 3 lần. Đáp án: "${correctAnswer}"`);
+                        
+                        const newErrors = [...errors, { correctAnswer, userAnswer: cleanedUserAnswer }];
+                        const newCompleted = completed + 1;
+
+                        setErrors(newErrors);
+                        setCompleted(newCompleted);
+                        cancel();
+
+                        if (isLastSentence) {
+                            onGameEnd({ score, correctCount, errors: newErrors });
+                        } else {
+                            nextSentenceTimeoutRef.current = window.setTimeout(() => startNewSentence(currentIndex + 1), 3500);
+                        }
+                    } else {
+                        setMessage(`Sai rồi! (Số lần sai: ${newMistakeCount}/3)`);
+                        window.setTimeout(() => setIsCorrect(null), 500);
+                    }
+                }
+            }, [isLocked, userAnswer, currentSentence, currentIndex, sentences.length, score, correctCount, completed, errors, cancel, speak, onGameEnd, startNewSentence]);
+
+            const handleListenAgain = () => {
+                if (!isSpeaking) {
+                    speak(currentSentence.en);
+                }
+            };
+
+            if (!currentSentence) return <div className="text-center text-lg">Đang tải...</div>;
+
+            const inputClasses = `w-full text-center p-4 text-xl md:text-2xl font-sans border-4 rounded-xl focus:outline-none focus:ring-4 transition duration-300 
+            ${isCorrect === true ? 'border-green-500 bg-green-50 focus:ring-green-200' : ''}
+            ${isCorrect === false ? 'border-red-500 bg-red-50 focus:ring-red-200 animate-shake' : 'border-pink-500 focus:ring-pink-200'}`;
+
+            return (
+                <div className="flex flex-col items-center gap-4 w-full">
+                    <h2 className="text-xl md:text-2xl font-semibold text-gray-700">Chủ đề: {topicName}</h2>
+                    <div className="text-lg md:text-2xl text-pink-800 font-semibold italic flex items-center justify-center gap-3 flex-wrap">
+                        <span>&ldquo;{currentSentence.vi}&rdquo;</span>
+                        <span className="text-2xl">{currentSentence.emoji}</span>
+                    </div>
+                    <div className="relative w-full my-4">
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            placeholder="Nhập câu bạn nghe được..."
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck="false"
+                            value={userAnswer}
+                            onChange={(e) => setUserAnswer(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleCheckAnswer()}
+                            disabled={isLocked}
+                            className={inputClasses}
+                        />
+                        {isHintVisible && (
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gray-800 text-white text-lg font-semibold px-6 py-3 rounded-xl pointer-events-none w-max max-w-[90%]">
+                                {currentSentence.en}
+                            </div>
+                        )}
+                    </div>
+                    <div className={`text-lg font-bold min-h-[28px] ${isCorrect ? 'text-green-600' : 'text-red-600'}`}>{message}</div>
+                    <div className="flex flex-wrap justify-center gap-3">
+                        <button onClick={handleListenAgain} disabled={isSpeaking || isLocked} className="px-7 py-3 text-lg font-bold text-white bg-blue-500 rounded-xl shadow-md hover:bg-blue-600 disabled:bg-gray-400 transform hover:-translate-y-0.5 transition">Nghe lại</button>
+                        <button onClick={handleCheckAnswer} disabled={isLocked} className="px-7 py-3 text-lg font-bold text-white bg-green-500 rounded-xl shadow-md hover:bg-green-600 disabled:bg-gray-400 transform hover:-translate-y-0.5 transition">Kiểm tra</button>
+                        <button
+                            disabled={isLocked}
+                            onMouseDown={() => setIsHintVisible(true)}
+                            onMouseUp={() => setIsHintVisible(false)}
+                            onMouseLeave={() => setIsHintVisible(false)}
+                            onTouchStart={(e) => { e.preventDefault(); setIsHintVisible(true); }}
+                            onTouchEnd={() => setIsHintVisible(false)}
+                            className="px-7 py-3 text-lg font-bold text-gray-800 bg-amber-400 rounded-xl shadow-md hover:bg-amber-500 disabled:bg-gray-400 disabled:cursor-not-allowed transform hover:-translate-y-0.5 transition"
+                        >
+                            Gợi ý
+                        </button>
+                        <button onClick={onBackToTopics} className="px-7 py-3 text-lg font-bold text-white bg-gray-500 rounded-xl shadow-md hover:bg-gray-600 disabled:bg-gray-400 transform hover:-translate-y-0.5 transition">Chủ đề khác</button>
+                    </div>
+                    <div className="text-xl font-semibold text-pink-800 mt-4">Điểm: {score} | Hoàn thành: {completed}/{sentences.length}</div>
+                </div>
+            );
+        };
+
+        function App() {
+            const [gameState, setGameState] = useState(GameState.START);
+            const [playerName, setPlayerName] = useState('');
+            const [currentTopic, setCurrentTopic] = useState(null);
+            const [gameResult, setGameResult] = useState({ score: 0, total: 0, correctCount: 0, errors: [] });
+
+            const { cancel: cancelSpeech } = useSpeechSynthesis();
+
+            const handleStart = useCallback((name) => {
+                setPlayerName(name);
+                setGameState(GameState.TOPIC_SELECTION);
+            }, []);
+
+            const handleSelectTopic = useCallback((topic) => {
+                setCurrentTopic(topic);
+                setGameState(GameState.GAME);
+            }, []);
+
+            const handleBackToTopics = useCallback(() => {
+                cancelSpeech();
+                setGameState(GameState.TOPIC_SELECTION);
+            }, [cancelSpeech]);
+
+            const handleGameEnd = useCallback((result) => {
+                if (currentTopic) {
+                    setGameResult({
+                        ...result,
+                        total: TOPICS[currentTopic].length,
+                    });
+                    setGameState(GameState.CONGRATS);
+                }
+            }, [currentTopic]);
+
+            const handlePlayAgain = useCallback(() => {
+                setGameState(GameState.GAME);
+            }, []);
+            
+            const handleReviewErrors = useCallback(() => {
+                setGameState(GameState.REVIEW_ERRORS);
+            }, []);
+
+            const renderScreen = () => {
+                switch (gameState) {
+                    case GameState.START:
+                        return <StartScreen onStart={handleStart} />;
+                    case GameState.TOPIC_SELECTION:
+                        return <TopicSelectionScreen onSelectTopic={handleSelectTopic} />;
+                    case GameState.GAME:
+                        if (currentTopic && TOPICS[currentTopic]) {
+                            return <GameScreen
+                                sentences={TOPICS[currentTopic]}
+                                topicName={currentTopic}
+                                onGameEnd={handleGameEnd}
+                                onBackToTopics={handleBackToTopics}
+                            />;
+                        }
+                        return null;
+                    case GameState.CONGRATS:
+                        if (currentTopic) {
+                            return <CongratsScreen
+                                {...gameResult}
+                                playerName={playerName}
+                                topic={currentTopic}
+                                onPlayAgain={handlePlayAgain}
+                                onSelectTopic={handleBackToTopics}
+                                onReviewErrors={handleReviewErrors}
+                            />;
+                        }
+                        return null;
+                    case GameState.REVIEW_ERRORS:
+                        return <ReviewErrorsScreen 
+                                    errors={gameResult.errors} 
+                                    onSelectTopic={handleBackToTopics}
+                              />
+                    default:
+                        return <StartScreen onStart={handleStart} />;
+                }
+            };
+            
+            return (
+                <div className="bg-gradient-to-br from-pink-100 to-purple-200 min-h-screen w-full flex justify-center items-center p-4">
+                    <main className="text-center p-6 md:p-8 max-w-4xl w-full bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl">
+                        <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-[#ec407a] mb-1">
+                            NGHE VÀ VIẾT CHÍNH TẢ
+                        </h1>
+                        {renderScreen()}
+                    </main>
+                </div>
+            );
+        };
+
+        // --- Mount the App ---
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+
+    </script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>

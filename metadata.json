@@ -1,0 +1,6 @@
+{
+  "name": "Listen and Spell: Grammar Practice (Single File)",
+  "description": "An interactive, single-file HTML application for Vietnamese speakers to practice English grammar. Users listen to sentences and type what they hear, receiving immediate feedback. The app features multiple grammar topics and a scoring system, all contained within a single portable file.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
