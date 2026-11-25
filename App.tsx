@@ -24,9 +24,39 @@ import { CongratsScreen } from './components/CongratsScreen';
 import { ReviewErrorsScreen } from './components/ReviewErrorsScreen';
 import { ShareModal } from './components/ShareModal';
 
+// Returns an empty string when the user simply closed the sign-in window.
+function getSignInErrorMessage(error: unknown): string {
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? String((error as { code: unknown }).code)
+      : '';
+  switch (code) {
+    case 'auth/popup-closed-by-user':
+    case 'auth/cancelled-popup-request':
+    case 'auth/user-cancelled':
+      return '';
+    case 'auth/popup-blocked':
+      return 'Trình duyệt đã chặn cửa sổ đăng nhập. Hãy cho phép cửa sổ bật lên, hoặc mở trang bằng Chrome hay Safari.';
+    case 'auth/network-request-failed':
+      return 'Không kết nối được để đăng nhập. Hãy kiểm tra mạng Internet rồi thử lại.';
+    case 'auth/unauthorized-domain':
+      return 'Trang web này chưa được cấp phép đăng nhập Google. Vui lòng báo cho giáo viên hoặc người quản lý trang.';
+    case 'auth/web-storage-unsupported':
+    case 'auth/operation-not-supported-in-this-environment':
+      return 'Trình duyệt này không hỗ trợ đăng nhập. Hãy mở trang bằng Chrome hay Safari.';
+    case 'auth/too-many-requests':
+      return 'Bạn đã thử quá nhiều lần. Vui lòng đợi vài phút rồi thử lại.';
+    case 'auth/user-disabled':
+      return 'Tài khoản này đã bị khóa.';
+    default:
+      return `Đăng nhập chưa thành công. Vui lòng thử lại${code ? ` (mã lỗi: ${code})` : ''}.`;
+  }
+}
+
 export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [authError, setAuthError] = useState('');
 
   const [gameState, setGameState] = useState<GameState>(GameState.START);
   const [playerName, setPlayerName] = useState<string>('Bạn');
@@ -56,6 +86,7 @@ export function App() {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setAuthReady(true);
+      if (firebaseUser) setAuthError('');
       if (firebaseUser?.displayName) {
         setPlayerName((prev) => (prev === 'Bạn' ? firebaseUser.displayName || 'Bạn' : prev));
       }
@@ -84,14 +115,9 @@ export function App() {
       }
     } catch (err) {
       setSharedSet(null);
-      const raw = err instanceof Error ? err.message : '';
-      if (raw.includes('Missing or insufficient permissions')) {
-        setSharedError(
-          'Bộ câu hỏi này đang được đặt ở chế độ Riêng tư bởi tác giả.'
-        );
-      } else {
-        setSharedError('Không thể tải bộ câu hỏi từ liên kết chia sẻ.');
-      }
+      setSharedError(
+        err instanceof Error ? err.message : 'Không thể tải bộ câu hỏi từ liên kết chia sẻ.'
+      );
     } finally {
       setSharedLoading(false);
     }
@@ -114,13 +140,20 @@ export function App() {
     (nextState: GameState) => {
       cancelSpeech();
       clearSetQueryParam();
+      setAuthError('');
       setGameState(nextState);
     },
     [cancelSpeech, clearSetQueryParam]
   );
 
   const handleSignIn = useCallback(async () => {
-    await signInWithPopup(auth, googleProvider);
+    setAuthError('');
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (err) {
+      console.error('Sign-in error:', err);
+      setAuthError(getSignInErrorMessage(err));
+    }
   }, []);
 
   const handleSignOut = useCallback(async () => {
@@ -456,6 +489,21 @@ export function App() {
             Tạo bài mới
           </button>
         </nav>
+
+        {authError && (
+          <div role="alert" className="border-t border-red-200 bg-red-50">
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-2.5 flex items-start justify-between gap-3 text-sm text-red-700">
+              <span>{authError}</span>
+              <button
+                type="button"
+                onClick={() => setAuthError('')}
+                className="shrink-0 font-semibold hover:underline cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       <main className="flex-1 w-full px-4 sm:px-6">{renderMainContent()}</main>
