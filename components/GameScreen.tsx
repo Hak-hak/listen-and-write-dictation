@@ -35,7 +35,8 @@ function normalizeFlexible(text: string): string {
     .trim()
     .toLowerCase()
     .replace(/[.,!?;:"'’`]/g, '')
-    .replace(/\s+/g, ' ');
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export const GameScreen: React.FC<GameScreenProps> = ({
@@ -60,7 +61,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const [errors, setErrors] = useState<ErrorRecord[]>([]);
   const [isHintVisible, setIsHintVisible] = useState(false);
   const [speechRate, setSpeechRate] = useState<number>(0.9);
-  const [flexibleMode, setFlexibleMode] = useState<boolean>(false);
+  const [flexibleMode, setFlexibleMode] = useState<boolean>(true);
   const [sfxMuted, setSfxMuted] = useState<boolean>(false);
 
   const {
@@ -375,7 +376,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               id="dictation-input"
               ref={inputRef}
               type="text"
-              placeholder="Gõ chính xác câu tiếng Anh bạn nghe được..."
+              placeholder="Gõ câu tiếng Anh bạn nghe được..."
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="off"
