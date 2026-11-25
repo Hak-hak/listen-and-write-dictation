@@ -1,0 +1,143 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    // --- Validation Blueprint ---
+    function isValidStudySet(data, setId) {
+      return data.keys().hasAll([
+          'id',
+          'title',
+          'description',
+          'category',
+          'visibility',
+          'ownerId',
+          'ownerName',
+          'items',
+          'itemCount',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'title',
+          'description',
+          'category',
+          'visibility',
+          'ownerId',
+          'ownerName',
+          'items',
+          'itemCount',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.id is string &&
+        data.id == setId &&
+        isValidId(data.id) &&
+        data.title is string &&
+        data.title.size() >= 1 &&
+        data.title.size() <= 100 &&
+        data.description is string &&
+        data.description.size() <= 300 &&
+        data.category is string &&
+        data.category.size() <= 60 &&
+        data.category in ['Giao tiếp', 'Ngữ pháp', 'IELTS & Học thuật', 'Từ vựng', 'Khác'] &&
+        data.visibility is string &&
+        data.visibility in ['public', 'unlisted', 'private'] &&
+        data.ownerId is string &&
+        isValidId(data.ownerId) &&
+        data.ownerId == request.auth.uid &&
+        data.ownerName is string &&
+        data.ownerName.size() >= 1 &&
+        data.ownerName.size() <= 80 &&
+        data.items is list &&
+        data.items.size() >= 1 &&
+        data.items.size() <= 50 &&
+        data.items[0] is map &&
+        data.items[0].keys().hasAll(['en', 'vi', 'emoji']) &&
+        data.items[0].keys().hasOnly(['en', 'vi', 'emoji']) &&
+        data.items[0].en is string &&
+        data.items[0].en.size() >= 1 &&
+        data.items[0].en.size() <= 240 &&
+        data.items[0].vi is string &&
+        data.items[0].vi.size() >= 1 &&
+        data.items[0].vi.size() <= 240 &&
+        data.items[0].emoji is string &&
+        data.items[0].emoji.size() <= 16 &&
+        data.itemCount is int &&
+        data.itemCount == data.items.size() &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+    match /studySets/{setId} {
+      allow get: if isValidId(setId) && (
+        existing().visibility == 'public' ||
+        existing().visibility == 'unlisted' ||
+        (isSignedIn() && existing().ownerId == request.auth.uid)
+      );
+
+      allow list: if existing().visibility == 'public' ||
+        (isSignedIn() && existing().ownerId == request.auth.uid);
+
+      allow create: if isVerifiedUser() &&
+        isValidId(setId) &&
+        isValidStudySet(incoming(), setId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser() &&
+        isValidId(setId) &&
+        isValidStudySet(incoming(), setId) &&
+        existing().ownerId == request.auth.uid &&
+        incoming().id == existing().id &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'title',
+            'description',
+            'category',
+            'visibility',
+            'ownerName',
+            'items',
+            'itemCount',
+            'updatedAt'
+          ]) ||
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'visibility',
+            'updatedAt'
+          ])
+        );
+
+      allow delete: if isVerifiedUser() &&
+        isValidId(setId) &&
+        existing().ownerId == request.auth.uid;
+    }
+  }
+}

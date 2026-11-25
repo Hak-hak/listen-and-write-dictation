@@ -1,0 +1,323 @@
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  setDoc,
+  Timestamp,
+  Unsubscribe,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
+import { auth, db } from '../firebase';
+import {
+  SentenceItem,
+  STUDY_SET_CATEGORIES,
+  STUDY_SET_LIMITS,
+  StudySet,
+  StudySetCategory,
+  StudySetInput,
+  StudySetVisibility,
+} from '../types';
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+): never {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo:
+        auth.currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
+    },
+    operationType,
+    path,
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+const COLLECTION_NAME = 'studySets';
+
+export function generateStudySetId(): string {
+  const randomPart =
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID().replace(/-/g, '').slice(0, 14)
+      : Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+  return `set_${randomPart}`;
+}
+
+export function getShareUrl(setId: string): string {
+  if (typeof window === 'undefined') return '';
+  const url = new URL(window.location.href);
+  url.search = '';
+  url.hash = '';
+  url.searchParams.set('set', setId);
+  return url.toString();
+}
+
+function sanitizeSentenceItems(rawItems: SentenceItem[]): SentenceItem[] {
+  const cleaned = rawItems
+    .map((item) => ({
+      en: (item.en || '').trim().slice(0, STUDY_SET_LIMITS.EN_MAX),
+      vi: (item.vi || '').trim().slice(0, STUDY_SET_LIMITS.VI_MAX),
+      emoji: (item.emoji || '').trim().slice(0, STUDY_SET_LIMITS.EMOJI_MAX),
+    }))
+    .filter((item) => item.en.length >= STUDY_SET_LIMITS.EN_MIN && item.vi.length >= STUDY_SET_LIMITS.VI_MIN);
+
+  if (cleaned.length < STUDY_SET_LIMITS.ITEMS_MIN || cleaned.length > STUDY_SET_LIMITS.ITEMS_MAX) {
+    throw new Error(
+      `Bộ câu hỏi phải có từ ${STUDY_SET_LIMITS.ITEMS_MIN} đến ${STUDY_SET_LIMITS.ITEMS_MAX} câu hợp lệ.`
+    );
+  }
+  return cleaned;
+}
+
+export function sanitizeStudySetInput(input: StudySetInput): StudySetInput {
+  const title = input.title.trim().slice(0, STUDY_SET_LIMITS.TITLE_MAX);
+  if (title.length < STUDY_SET_LIMITS.TITLE_MIN) {
+    throw new Error('Vui lòng nhập tiêu đề cho bộ câu hỏi.');
+  }
+
+  const description = input.description.trim().slice(0, STUDY_SET_LIMITS.DESCRIPTION_MAX);
+  const category: StudySetCategory = STUDY_SET_CATEGORIES.includes(input.category)
+    ? input.category
+    : 'Khác';
+
+  const visibility: StudySetVisibility = ['public', 'unlisted', 'private'].includes(input.visibility)
+    ? input.visibility
+    : 'unlisted';
+
+  const items = sanitizeSentenceItems(input.items);
+
+  return {
+    title,
+    description,
+    category,
+    visibility,
+    items,
+  };
+}
+
+function getSafeOwnerName(): string {
+  const rawName = auth.currentUser?.displayName?.trim() || 'Người tạo nội dung';
+  return rawName.slice(0, STUDY_SET_LIMITS.OWNER_NAME_MAX) || 'Người tạo nội dung';
+}
+
+function getTimestampMillis(ts: unknown): number {
+  if (ts instanceof Timestamp) return ts.toMillis();
+  if (ts && typeof ts === 'object' && 'seconds' in ts && typeof (ts as { seconds: number }).seconds === 'number') {
+    return (ts as { seconds: number }).seconds * 1000;
+  }
+  return 0;
+}
+
+export function formatStudySetDate(ts: unknown): string {
+  const ms = getTimestampMillis(ts);
+  if (!ms) return 'Vừa cập nhật';
+  return new Date(ms).toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+export async function createStudySet(input: StudySetInput): Promise<StudySet> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Vui lòng đăng nhập Google để lưu bộ câu hỏi.');
+  }
+  if (!user.emailVerified) {
+    throw new Error('Tài khoản Google của bạn cần xác minh email để lưu dữ liệu.');
+  }
+
+  const clean = sanitizeStudySetInput(input);
+  const setId = generateStudySetId();
+  if (!STUDY_SET_LIMITS.ID_PATTERN.test(setId) || setId.length > STUDY_SET_LIMITS.ID_MAX) {
+    throw new Error('Mã bộ câu hỏi không hợp lệ.');
+  }
+
+  const ownerName = getSafeOwnerName();
+  const docPath = `${COLLECTION_NAME}/${setId}`;
+
+  const payload = {
+    id: setId,
+    title: clean.title,
+    description: clean.description,
+    category: clean.category,
+    visibility: clean.visibility,
+    ownerId: user.uid,
+    ownerName,
+    items: clean.items,
+    itemCount: clean.items.length,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  try {
+    await setDoc(doc(db, COLLECTION_NAME, setId), payload);
+    return {
+      ...payload,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, docPath);
+  }
+}
+
+export async function updateStudySet(setId: string, input: StudySetInput): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Vui lòng đăng nhập Google để chỉnh sửa.');
+  }
+  if (!STUDY_SET_LIMITS.ID_PATTERN.test(setId)) {
+    throw new Error('Mã bộ câu hỏi không hợp lệ.');
+  }
+
+  const clean = sanitizeStudySetInput(input);
+  const ownerName = getSafeOwnerName();
+  const docPath = `${COLLECTION_NAME}/${setId}`;
+
+  try {
+    await updateDoc(doc(db, COLLECTION_NAME, setId), {
+      title: clean.title,
+      description: clean.description,
+      category: clean.category,
+      visibility: clean.visibility,
+      ownerName,
+      items: clean.items,
+      itemCount: clean.items.length,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, docPath);
+  }
+}
+
+export async function updateStudySetVisibility(
+  setId: string,
+  visibility: StudySetVisibility
+): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Vui lòng đăng nhập Google để thay đổi quyền chia sẻ.');
+  }
+  const docPath = `${COLLECTION_NAME}/${setId}`;
+  try {
+    await updateDoc(doc(db, COLLECTION_NAME, setId), {
+      visibility,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, docPath);
+  }
+}
+
+export async function deleteStudySet(setId: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Vui lòng đăng nhập Google để xóa bộ câu hỏi.');
+  }
+  const docPath = `${COLLECTION_NAME}/${setId}`;
+  try {
+    await deleteDoc(doc(db, COLLECTION_NAME, setId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, docPath);
+  }
+}
+
+export async function fetchStudySetById(setId: string): Promise<StudySet | null> {
+  const trimmed = setId.trim();
+  if (!trimmed || !STUDY_SET_LIMITS.ID_PATTERN.test(trimmed) || trimmed.length > STUDY_SET_LIMITS.ID_MAX) {
+    return null;
+  }
+  const docPath = `${COLLECTION_NAME}/${trimmed}`;
+  try {
+    const snap = await getDoc(doc(db, COLLECTION_NAME, trimmed));
+    if (!snap.exists()) return null;
+    return snap.data() as StudySet;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, docPath);
+  }
+}
+
+export function subscribeToUserStudySets(
+  userId: string,
+  onData: (sets: StudySet[]) => void,
+  onError: (err: Error) => void
+): Unsubscribe {
+  const q = query(collection(db, COLLECTION_NAME), where('ownerId', '==', userId));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const sets = snapshot.docs
+        .map((d) => d.data() as StudySet)
+        .sort((a, b) => getTimestampMillis(b.updatedAt) - getTimestampMillis(a.updatedAt));
+      onData(sets);
+    },
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
+      } catch (wrapped) {
+        onError(wrapped instanceof Error ? wrapped : new Error(String(wrapped)));
+      }
+    }
+  );
+}
+
+export async function fetchPublicStudySets(): Promise<StudySet[]> {
+  try {
+    const q = query(
+      collection(db, COLLECTION_NAME),
+      where('visibility', '==', 'public'),
+      limit(36)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs
+      .map((d) => d.data() as StudySet)
+      .sort((a, b) => getTimestampMillis(b.updatedAt) - getTimestampMillis(a.updatedAt));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
+  }
+}
