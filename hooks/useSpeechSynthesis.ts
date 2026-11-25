@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface SpeakOptions {
   rate?: number;
@@ -38,7 +38,12 @@ export function formatVoiceLabel(voice: SpeechSynthesisVoice): string {
 
 export function useSpeechSynthesis() {
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  // Read voices that are already loaded, so the very first sentence uses the chosen voice.
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>(() =>
+    typeof window !== 'undefined' && window.speechSynthesis
+      ? sortEnglishVoices(window.speechSynthesis.getVoices())
+      : []
+  );
   const [selectedVoiceURI, setSelectedVoiceURIState] = useState<string>(() => {
     if (typeof window === 'undefined') return '';
     try {
@@ -49,6 +54,10 @@ export function useSpeechSynthesis() {
   });
 
   const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
+
+  // Only the latest request may update state or run its onEnd callback.
+  const requestIdRef = useRef(0);
+  const pendingTimeoutRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (!synth) return;
@@ -108,26 +117,37 @@ export function useSpeechSynthesis() {
       }
 
       utterance.rate = options.rate ?? 0.9;
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => {
-        setIsSpeaking(false);
-        if (options.onEnd) options.onEnd();
-      };
-      utterance.onerror = () => {
+      const requestId = ++requestIdRef.current;
+      const isStale = () => requestId !== requestIdRef.current;
+      const finish = () => {
+        if (isStale()) return;
         setIsSpeaking(false);
         if (options.onEnd) options.onEnd();
       };
 
+      utterance.onstart = () => {
+        if (!isStale()) setIsSpeaking(true);
+      };
+      utterance.onend = finish;
+      utterance.onerror = (event) => {
+        // A cancelled sentence has not finished, so it must not trigger onEnd.
+        if (event.error === 'canceled' || event.error === 'interrupted') {
+          if (!isStale()) setIsSpeaking(false);
+          return;
+        }
+        finish();
+      };
+
+      window.clearTimeout(pendingTimeoutRef.current);
       if (synth.speaking) {
         synth.cancel();
       }
 
-      window.setTimeout(() => {
+      pendingTimeoutRef.current = window.setTimeout(() => {
         try {
           synth.speak(utterance);
         } catch {
-          setIsSpeaking(false);
-          if (options.onEnd) options.onEnd();
+          finish();
         }
       }, 90);
     },
@@ -135,6 +155,8 @@ export function useSpeechSynthesis() {
   );
 
   const cancel = useCallback(() => {
+    requestIdRef.current += 1;
+    window.clearTimeout(pendingTimeoutRef.current);
     if (synth) {
       synth.cancel();
       setIsSpeaking(false);
