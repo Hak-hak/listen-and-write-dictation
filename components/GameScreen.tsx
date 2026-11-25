@@ -25,8 +25,13 @@ interface GameScreenProps {
   onBack: () => void;
 }
 
+// Phone keyboards often type curly quotes (’ “ ”). Treat them like straight ones.
+function normalizeQuotes(text: string): string {
+  return text.replace(/[‘’‛′´`]/g, "'").replace(/[“”„″]/g, '"');
+}
+
 function normalizeFlexible(text: string): string {
-  return text
+  return normalizeQuotes(text)
     .trim()
     .toLowerCase()
     .replace(/[.,!?;:"'’`]/g, '')
@@ -71,6 +76,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const nextSentenceTimeoutRef = useRef<number | null>(null);
   const rateRef = useRef(speechRate);
   rateRef.current = speechRate;
+  // Keeps the latest voice without restarting the exercise when the voice changes.
+  const speakRef = useRef(speak);
+  speakRef.current = speak;
 
   const currentSentence = sentences[currentIndex];
 
@@ -93,14 +101,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       window.setTimeout(() => inputRef.current?.focus(), 60);
 
       const sentenceToSpeak = sentences[index].en;
-      speak(sentenceToSpeak, {
+      speakRef.current(sentenceToSpeak, {
         rate: rateRef.current,
         onEnd: () => {
-          speak(sentenceToSpeak, { rate: rateRef.current });
+          speakRef.current(sentenceToSpeak, { rate: rateRef.current });
         },
       });
     },
-    [sentences, cancel, speak]
+    [sentences, cancel]
   );
 
   useEffect(() => {
@@ -125,10 +133,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
   const handlePreviewVoice = useCallback(
     (voiceURI: string) => {
-      if (!currentSentence) return;
+      // After an answer is accepted, a preview would cut off the sentence being read.
+      if (!currentSentence || isLocked) return;
       speak(currentSentence.en, { rate: speechRate, voiceURI });
     },
-    [currentSentence, speak, speechRate]
+    [currentSentence, isLocked, speak, speechRate]
   );
 
   useEffect(() => {
@@ -151,7 +160,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
     const isMatch = flexibleMode
       ? normalizeFlexible(cleanedUserAnswer) === normalizeFlexible(correctAnswer)
-      : cleanedUserAnswer === correctAnswer;
+      : normalizeQuotes(cleanedUserAnswer) === normalizeQuotes(correctAnswer);
 
     if (isMatch) {
       playSuccessChime(sfxMuted);
@@ -168,18 +177,26 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       setStreak((s) => s + 1);
       cancel();
 
+      const goNext = () => {
+        if (isLastSentence) {
+          onGameEnd({ score: newScore, correctCount: newCorrectCount, errors });
+        } else {
+          startNewSentence(currentIndex + 1);
+        }
+      };
+      const scheduleNext = (delay: number) => {
+        if (nextSentenceTimeoutRef.current) {
+          window.clearTimeout(nextSentenceTimeoutRef.current);
+        }
+        nextSentenceTimeoutRef.current = window.setTimeout(goNext, delay);
+      };
+
+      // Backup in case the device never reports that reading has finished.
+      scheduleNext(6000 + (correctAnswer.length * 150) / speechRate);
+
       speak(correctAnswer, {
         rate: speechRate,
-        onEnd: () => {
-          if (isLastSentence) {
-            onGameEnd({ score: newScore, correctCount: newCorrectCount, errors });
-          } else {
-            nextSentenceTimeoutRef.current = window.setTimeout(
-              () => startNewSentence(currentIndex + 1),
-              1200
-            );
-          }
-        },
+        onEnd: () => scheduleNext(isLastSentence ? 0 : 1200),
       });
     } else {
       playErrorTone(sfxMuted);
