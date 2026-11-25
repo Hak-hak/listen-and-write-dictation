@@ -34,21 +34,34 @@ export enum OperationType {
   WRITE = 'write',
 }
 
-export interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
+// Turns a Firestore error into a short Vietnamese message that is safe to show.
+export function getFirestoreErrorMessage(code: string, operationType: OperationType): string {
+  switch (code) {
+    case 'permission-denied':
+      if (operationType === OperationType.GET) {
+        return 'Không xem được bộ câu hỏi này. Bộ có thể đang ở chế độ Riêng tư, đã bị xóa hoặc không tồn tại.';
+      }
+      return 'Bạn chưa có quyền thực hiện thao tác này. Hãy đăng xuất, đăng nhập lại đúng tài khoản rồi thử lại.';
+    case 'unauthenticated':
+      return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+    case 'unavailable':
+    case 'deadline-exceeded':
+      return 'Không kết nối được máy chủ. Hãy kiểm tra mạng Internet rồi thử lại.';
+    case 'resource-exhausted':
+      return 'Hệ thống đã hết lượt truy cập miễn phí trong ngày. Vui lòng thử lại vào ngày mai.';
+    case 'not-found':
+      return 'Bộ câu hỏi này không còn tồn tại.';
+  }
+
+  const actions: Record<OperationType, string> = {
+    [OperationType.CREATE]: 'lưu bộ câu hỏi',
+    [OperationType.UPDATE]: 'cập nhật bộ câu hỏi',
+    [OperationType.DELETE]: 'xóa bộ câu hỏi',
+    [OperationType.LIST]: 'tải danh sách bộ câu hỏi',
+    [OperationType.GET]: 'tải bộ câu hỏi',
+    [OperationType.WRITE]: 'lưu dữ liệu',
   };
+  return `Không thể ${actions[operationType]}. Vui lòng thử lại.`;
 }
 
 export function handleFirestoreError(
@@ -56,25 +69,13 @@ export function handleFirestoreError(
   operationType: OperationType,
   path: string | null
 ): never {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo:
-        auth.currentUser?.providerData?.map((provider) => ({
-          providerId: provider.providerId,
-          email: provider.email,
-        })) || [],
-    },
-    operationType,
-    path,
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? String((error as { code: unknown }).code)
+      : 'unknown';
+  // Technical details go to the console only, without any account information.
+  console.error('Firestore error:', operationType, path, code, error);
+  throw new Error(getFirestoreErrorMessage(code, operationType));
 }
 
 const COLLECTION_NAME = 'studySets';
@@ -314,6 +315,10 @@ export async function fetchPublicStudySets(): Promise<StudySet[]> {
       limit(36)
     );
     const snapshot = await getDocs(q);
+    // Offline, Firestore returns an empty cached list instead of an error.
+    if (snapshot.empty && snapshot.metadata.fromCache) {
+      throw { code: 'unavailable' };
+    }
     return snapshot.docs
       .map((d) => d.data() as StudySet)
       .sort((a, b) => getTimestampMillis(b.updatedAt) - getTimestampMillis(a.updatedAt));
