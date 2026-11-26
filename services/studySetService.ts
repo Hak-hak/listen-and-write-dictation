@@ -80,6 +80,52 @@ export function handleFirestoreError(
 
 const COLLECTION_NAME = 'studySets';
 
+// Sets created without signing in. They must match the guest rules in firestore.rules.
+export const GUEST_OWNER_ID = 'guest';
+const GUEST_OWNER_NAME = 'Khách';
+const DEVICE_SETS_KEY = 'listen_spell_guest_sets';
+
+// Guest sets are remembered in this browser so their links are not lost.
+export function getDeviceSets(): StudySet[] {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(DEVICE_SETS_KEY) || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return (parsed as StudySet[]).filter(
+      (s) => s && typeof s.id === 'string' && typeof s.title === 'string' && Array.isArray(s.items)
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writeDeviceSets(sets: StudySet[]): void {
+  try {
+    window.localStorage.setItem(DEVICE_SETS_KEY, JSON.stringify(sets.slice(0, 100)));
+  } catch {
+    // The browser blocks storage; the share link still works.
+  }
+}
+
+function rememberDeviceSet(set: StudySet): void {
+  writeDeviceSets([set, ...getDeviceSets().filter((s) => s.id !== set.id)]);
+}
+
+export function forgetDeviceSet(setId: string): void {
+  writeDeviceSets(getDeviceSets().filter((s) => s.id !== setId));
+}
+
+function isPermissionDenied(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === 'permission-denied';
+}
+
+function guestRulesError(error: unknown): Error {
+  console.error('Firestore error: guest write denied', error);
+  return new Error(
+    'Máy chủ chưa cho phép thao tác này khi chưa đăng nhập. Bộ có thể đã bị xóa, hoặc quy tắc Firestore mới chưa được đăng (Publish).',
+    { cause: error }
+  );
+}
+
 export function generateStudySetId(): string {
   const randomPart =
     typeof crypto !== 'undefined' && crypto.randomUUID
@@ -165,10 +211,7 @@ export function formatStudySetDate(ts: unknown): string {
 
 export async function createStudySet(input: StudySetInput): Promise<StudySet> {
   const user = auth.currentUser;
-  if (!user) {
-    throw new Error('Vui lòng đăng nhập Google để lưu bộ câu hỏi.');
-  }
-  if (!user.emailVerified) {
+  if (user && !user.emailVerified) {
     throw new Error('Tài khoản Google của bạn cần xác minh email để lưu dữ liệu.');
   }
 
@@ -178,7 +221,7 @@ export async function createStudySet(input: StudySetInput): Promise<StudySet> {
     throw new Error('Mã bộ câu hỏi không hợp lệ.');
   }
 
-  const ownerName = getSafeOwnerName();
+  const ownerName = user ? getSafeOwnerName() : GUEST_OWNER_NAME;
   const docPath = `${COLLECTION_NAME}/${setId}`;
 
   const payload = {
@@ -186,8 +229,8 @@ export async function createStudySet(input: StudySetInput): Promise<StudySet> {
     title: clean.title,
     description: clean.description,
     category: clean.category,
-    visibility: clean.visibility,
-    ownerId: user.uid,
+    visibility: user ? clean.visibility : ('unlisted' as const),
+    ownerId: user ? user.uid : GUEST_OWNER_ID,
     ownerName,
     items: clean.items,
     itemCount: clean.items.length,
@@ -197,19 +240,26 @@ export async function createStudySet(input: StudySetInput): Promise<StudySet> {
 
   try {
     await setDoc(doc(db, COLLECTION_NAME, setId), payload);
-    return {
+    const saved: StudySet = {
       ...payload,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
+    if (!user) rememberDeviceSet(saved);
+    return saved;
   } catch (error) {
+    if (!user && isPermissionDenied(error)) throw guestRulesError(error);
     handleFirestoreError(error, OperationType.CREATE, docPath);
   }
 }
 
-export async function updateStudySet(setId: string, input: StudySetInput): Promise<void> {
-  const user = auth.currentUser;
-  if (!user) {
+export async function updateStudySet(
+  existing: StudySet,
+  input: StudySetInput
+): Promise<StudySet> {
+  const setId = existing.id;
+  const isGuestSet = existing.ownerId === GUEST_OWNER_ID;
+  if (!isGuestSet && !auth.currentUser) {
     throw new Error('Vui lòng đăng nhập Google để chỉnh sửa.');
   }
   if (!STUDY_SET_LIMITS.ID_PATTERN.test(setId)) {
@@ -217,21 +267,27 @@ export async function updateStudySet(setId: string, input: StudySetInput): Promi
   }
 
   const clean = sanitizeStudySetInput(input);
-  const ownerName = getSafeOwnerName();
+  const changes = {
+    title: clean.title,
+    description: clean.description,
+    category: clean.category,
+    visibility: isGuestSet ? ('unlisted' as const) : clean.visibility,
+    ownerName: isGuestSet ? GUEST_OWNER_NAME : getSafeOwnerName(),
+    items: clean.items,
+    itemCount: clean.items.length,
+  };
   const docPath = `${COLLECTION_NAME}/${setId}`;
 
   try {
     await updateDoc(doc(db, COLLECTION_NAME, setId), {
-      title: clean.title,
-      description: clean.description,
-      category: clean.category,
-      visibility: clean.visibility,
-      ownerName,
-      items: clean.items,
-      itemCount: clean.items.length,
+      ...changes,
       updatedAt: serverTimestamp(),
     });
+    const updated: StudySet = { ...existing, ...changes, updatedAt: Timestamp.now() };
+    if (isGuestSet) rememberDeviceSet(updated);
+    return updated;
   } catch (error) {
+    if (isGuestSet && isPermissionDenied(error)) throw guestRulesError(error);
     handleFirestoreError(error, OperationType.UPDATE, docPath);
   }
 }
@@ -255,15 +311,32 @@ export async function updateStudySetVisibility(
   }
 }
 
-export async function deleteStudySet(setId: string): Promise<void> {
-  const user = auth.currentUser;
-  if (!user) {
+// A guest set that no longer exists cannot be read, so it only needs to leave the list.
+async function isGone(setId: string): Promise<boolean> {
+  try {
+    return !(await getDoc(doc(db, COLLECTION_NAME, setId))).exists();
+  } catch (error) {
+    return isPermissionDenied(error);
+  }
+}
+
+export async function deleteStudySet(setId: string, ownerId: string): Promise<void> {
+  const isGuestSet = ownerId === GUEST_OWNER_ID;
+  if (!isGuestSet && !auth.currentUser) {
     throw new Error('Vui lòng đăng nhập Google để xóa bộ câu hỏi.');
   }
   const docPath = `${COLLECTION_NAME}/${setId}`;
   try {
     await deleteDoc(doc(db, COLLECTION_NAME, setId));
+    if (isGuestSet) forgetDeviceSet(setId);
   } catch (error) {
+    if (isGuestSet && isPermissionDenied(error)) {
+      if (await isGone(setId)) {
+        forgetDeviceSet(setId);
+        return;
+      }
+      throw guestRulesError(error);
+    }
     handleFirestoreError(error, OperationType.DELETE, docPath);
   }
 }
