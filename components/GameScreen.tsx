@@ -397,7 +397,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             />
 
             {isHintVisible && (
-              <div className="mt-2.5 p-3 rounded-xl bg-slate-900 text-white text-sm font-medium select-none flex items-center justify-between gap-2">
+              <div className="absolute left-0 right-0 bottom-full mb-2 z-10 p-3 rounded-xl bg-slate-900 text-white text-sm font-medium shadow-lg select-none pointer-events-none flex items-center justify-between gap-2">
                 <span>{currentSentence.en}</span>
                 <span className="text-[11px] font-mono text-amber-300 shrink-0">
                   Gợi ý
@@ -436,15 +436,27 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             <button
               type="button"
               disabled={isLocked}
-              onMouseDown={() => setIsHintVisible(true)}
-              onMouseUp={() => setIsHintVisible(false)}
-              onMouseLeave={() => setIsHintVisible(false)}
-              onTouchStart={(e) => {
+              onPointerDown={(e) => {
+                if (e.button !== 0) return;
+                // Keeps the cursor in the answer box, so the phone keyboard stays open.
                 e.preventDefault();
+                e.currentTarget.setPointerCapture(e.pointerId);
                 setIsHintVisible(true);
               }}
-              onTouchEnd={() => setIsHintVisible(false)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-amber-950 bg-amber-300 hover:bg-amber-400 disabled:opacity-50 rounded-xl transition-colors select-none cursor-pointer"
+              onPointerUp={() => setIsHintVisible(false)}
+              onPointerCancel={() => setIsHintVisible(false)}
+              onLostPointerCapture={() => setIsHintVisible(false)}
+              onKeyDown={(e) => {
+                if (e.key === ' ' || e.key === 'Enter') {
+                  e.preventDefault();
+                  setIsHintVisible(true);
+                }
+              }}
+              onKeyUp={() => setIsHintVisible(false)}
+              onBlur={() => setIsHintVisible(false)}
+              onContextMenu={(e) => e.preventDefault()}
+              style={{ WebkitTouchCallout: 'none' }}
+              className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-amber-950 bg-amber-300 hover:bg-amber-400 disabled:opacity-50 rounded-xl transition-colors select-none touch-none cursor-pointer"
             >
               <Eye className="w-4 h-4" />
               <span>Giữ xem gợi ý</span>
