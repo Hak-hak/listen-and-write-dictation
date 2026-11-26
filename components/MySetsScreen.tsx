@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { User } from 'firebase/auth';
 import {
+  Copy,
   Edit3,
   FolderPlus,
   Globe,
@@ -15,7 +16,10 @@ import {
 import { StudySet, StudySetVisibility } from '../types';
 import {
   deleteStudySet,
+  fetchStudySetById,
+  forgetDeviceSet,
   formatStudySetDate,
+  getDeviceSets,
   subscribeToUserStudySets,
 } from '../services/studySetService';
 
@@ -24,6 +28,7 @@ interface MySetsScreenProps {
   onSignIn: () => Promise<void>;
   onCreateNew: () => void;
   onEditSet: (set: StudySet) => void;
+  onCopySet: (set: StudySet) => void;
   onPlaySet: (set: StudySet) => void;
   onShareSet: (set: StudySet) => void;
 }
@@ -51,6 +56,7 @@ export const MySetsScreen: React.FC<MySetsScreenProps> = ({
   onSignIn,
   onCreateNew,
   onEditSet,
+  onCopySet,
   onPlaySet,
   onShareSet,
 }) => {
@@ -59,6 +65,142 @@ export const MySetsScreen: React.FC<MySetsScreenProps> = ({
   const [error, setError] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deviceSets, setDeviceSets] = useState<StudySet[]>(getDeviceSets);
+  const [deviceError, setDeviceError] = useState('');
+  const [busyDeviceId, setBusyDeviceId] = useState<string | null>(null);
+
+  // Load the latest version first, in case the set was changed on another device.
+  const handleEditDeviceSet = async (set: StudySet) => {
+    setBusyDeviceId(set.id);
+    setDeviceError('');
+    try {
+      const latest = await fetchStudySetById(set.id);
+      if (latest) {
+        onEditSet(latest);
+        return;
+      }
+      forgetDeviceSet(set.id);
+      setDeviceSets(getDeviceSets());
+      setDeviceError('Bộ câu hỏi này đã bị xóa.');
+    } catch (err) {
+      setDeviceError(err instanceof Error ? err.message : 'Không thể mở bộ câu hỏi.');
+    }
+    setBusyDeviceId(null);
+  };
+
+  const handleDeleteDeviceSet = async (set: StudySet) => {
+    setBusyDeviceId(set.id);
+    setDeviceError('');
+    try {
+      await deleteStudySet(set.id, set.ownerId);
+      setDeviceSets(getDeviceSets());
+      setConfirmDeleteId(null);
+    } catch (err) {
+      setDeviceError(err instanceof Error ? err.message : 'Không thể xóa bộ câu hỏi.');
+    }
+    setBusyDeviceId(null);
+  };
+
+  const deviceSection = (deviceSets.length > 0 || deviceError) && (
+    <section className="mt-6 text-left">
+      <h2 className="font-display text-lg font-bold text-slate-900">
+        Bộ đã tạo trên máy này (không đăng nhập)
+      </h2>
+      <p className="text-xs text-slate-500 mt-0.5 mb-3">
+        Danh sách chỉ lưu trong trình duyệt này. Hãy chép lại link để không bị mất.
+      </p>
+      {deviceError && (
+        <div role="alert" className="mb-3 p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+          {deviceError}
+        </div>
+      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        {deviceSets.map((set) => (
+          <div
+            key={set.id}
+            className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between gap-3 shadow-xs"
+          >
+            <div>
+              <p className="text-[11px] text-slate-500 mb-1">
+                {set.category} · {set.items.length} câu · {formatStudySetDate(set.createdAt)}
+              </p>
+              <h3 className="font-display text-base font-bold text-slate-900 leading-snug">
+                {set.title}
+              </h3>
+            </div>
+            {confirmDeleteId === set.id ? (
+              <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-medium text-red-700">
+                  Xóa vĩnh viễn? Link đã gửi sẽ không mở được.
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteId(null)}
+                    className="px-2.5 py-1.5 text-xs font-medium text-slate-600 rounded-lg cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busyDeviceId === set.id}
+                    onClick={() => void handleDeleteDeviceSet(set)}
+                    className="px-2.5 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-lg cursor-pointer"
+                  >
+                    {busyDeviceId === set.id ? 'Đang xóa...' : 'Xóa'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onPlaySet(set)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg cursor-pointer"
+                >
+                  <Play className="w-3 h-3 fill-current" />
+                  <span>Luyện tập</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onShareSet(set)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Lấy link</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={busyDeviceId === set.id}
+                  onClick={() => void handleEditDeviceSet(set)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-lg cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Sửa</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onCopySet(set)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Sao chép</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteId(set.id)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-lg cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Xóa</span>
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 
   useEffect(() => {
     if (!user) {
@@ -84,7 +226,7 @@ export const MySetsScreen: React.FC<MySetsScreenProps> = ({
   const handleConfirmDelete = async (setId: string) => {
     setDeletingId(setId);
     try {
-      await deleteStudySet(setId);
+      await deleteStudySet(setId, user?.uid ?? '');
       setConfirmDeleteId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không thể xóa bộ câu hỏi.');
@@ -106,18 +248,27 @@ export const MySetsScreen: React.FC<MySetsScreenProps> = ({
               Quản lý bộ câu hỏi của bạn
             </h1>
             <p className="text-sm text-slate-600 max-w-md mx-auto mb-6 leading-relaxed">
-              Đăng nhập bằng Google để lưu bộ câu hỏi trên Firestore, chỉnh sửa mọi lúc và tạo liên kết chia sẻ cho bạn bè.
+              Bạn tạo và chia sẻ bộ câu hỏi được ngay, không cần đăng nhập. Đăng nhập Google nếu muốn khóa bộ theo tài khoản và quản lý trên nhiều máy.
             </p>
             <button
               type="button"
+              onClick={onCreateNew}
+              className="inline-flex items-center gap-2 px-6 py-2.5 mr-2 mb-2 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-blue-600 rounded-xl shadow-xs cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Tạo bộ mới</span>
+            </button>
+            <button
+              type="button"
               onClick={() => void onSignIn()}
-              className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 rounded-xl shadow-xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
             >
               <LogIn className="w-4 h-4" />
               <span>Đăng nhập bằng Google</span>
             </button>
           </div>
         </div>
+        {deviceSection}
       </div>
     );
   }
@@ -286,6 +437,7 @@ export const MySetsScreen: React.FC<MySetsScreenProps> = ({
           })}
         </div>
       )}
+      {deviceSection}
     </div>
   );
 };

@@ -20,13 +20,18 @@ import {
   StudySetCategory,
   StudySetVisibility,
 } from '../types';
-import { createStudySet, updateStudySet } from '../services/studySetService';
+import {
+  createStudySet,
+  GUEST_OWNER_ID,
+  updateStudySet,
+} from '../services/studySetService';
 import { useSpeechSynthesis } from '../hooks/useSpeechSynthesis';
 import { VoiceSelector } from './VoiceSelector';
 
 interface CreateSetScreenProps {
   user: User | null;
   editingSet: StudySet | null;
+  copyFrom: StudySet | null;
   onSignIn: () => Promise<void>;
   onSaved: (savedSet: StudySet, isNew: boolean) => void;
   onCancel: () => void;
@@ -37,26 +42,35 @@ const QUICK_EMOJIS = ['🗣️', '📚', '💡', '✈️', '🏠', '☕', '🎯'
 export const CreateSetScreen: React.FC<CreateSetScreenProps> = ({
   user,
   editingSet,
+  copyFrom,
   onSignIn,
   onSaved,
   onCancel,
 }) => {
-  const [title, setTitle] = useState(editingSet?.title ?? '');
-  const [description, setDescription] = useState(editingSet?.description ?? '');
+  // A copy starts with the old content but is saved as a new set.
+  const source = editingSet ?? copyFrom;
+  const [title, setTitle] = useState(
+    editingSet?.title ??
+      (copyFrom ? `${copyFrom.title} (bản sửa)`.slice(0, STUDY_SET_LIMITS.TITLE_MAX) : '')
+  );
+  const [description, setDescription] = useState(source?.description ?? '');
   const [category, setCategory] = useState<StudySetCategory>(
-    editingSet?.category ?? 'Giao tiếp'
+    source?.category ?? 'Giao tiếp'
   );
   const [visibility, setVisibility] = useState<StudySetVisibility>(
     editingSet?.visibility ?? 'unlisted'
   );
   const [items, setItems] = useState<SentenceItem[]>(
-    editingSet?.items.length
-      ? editingSet.items
+    source?.items.length
+      ? source.items
       : [
           { en: '', vi: '', emoji: '🗣️' },
           { en: '', vi: '', emoji: '📚' },
         ]
   );
+
+  // Sets without an owner account can only be shared by link.
+  const isGuestSet = editingSet ? editingSet.ownerId === GUEST_OWNER_ID : !user;
 
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [bulkText, setBulkText] = useState('');
@@ -152,11 +166,6 @@ export const CreateSetScreen: React.FC<CreateSetScreenProps> = ({
     e.preventDefault();
     setErrorMsg('');
 
-    if (!user) {
-      setErrorMsg('Bạn cần đăng nhập Google để lưu bộ câu hỏi lên Firestore.');
-      return;
-    }
-
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       setErrorMsg('Vui lòng nhập tiêu đề cho bộ câu hỏi.');
@@ -187,31 +196,20 @@ export const CreateSetScreen: React.FC<CreateSetScreenProps> = ({
     setSaving(true);
     try {
       if (editingSet) {
-        await updateStudySet(editingSet.id, {
+        const updated = await updateStudySet(editingSet, {
           title: trimmedTitle,
           description: description.trim(),
           category,
           visibility,
           items: validItems,
         });
-        onSaved(
-          {
-            ...editingSet,
-            title: trimmedTitle,
-            description: description.trim(),
-            category,
-            visibility,
-            items: validItems,
-            itemCount: validItems.length,
-          },
-          false
-        );
+        onSaved(updated, false);
       } else {
         const created = await createStudySet({
           title: trimmedTitle,
           description: description.trim(),
           category,
-          visibility,
+          visibility: isGuestSet ? 'unlisted' : visibility,
           items: validItems,
         });
         onSaved(created, true);
@@ -259,10 +257,10 @@ export const CreateSetScreen: React.FC<CreateSetScreenProps> = ({
         <div className="bg-white border border-indigo-100 rounded-2xl p-5 mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
           <div>
             <h2 className="text-sm sm:text-base font-semibold text-slate-900">
-              Đăng nhập Google để lưu và quản lý liên kết chia sẻ
+              Bạn có thể lưu và lấy link mà không cần đăng nhập
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-              Bạn có thể soạn trước nội dung bên dưới, sau đó đăng nhập để lưu lên Firestore và nhận link chia sẻ.
+              Bộ lưu khi chưa đăng nhập chỉ chia sẻ bằng link. Bạn sửa hoặc xóa trong mục &ldquo;Bộ của tôi&rdquo; trên máy này. Bộ không được khóa bằng tài khoản, nên người có link và rành kỹ thuật cũng có thể sửa hoặc xóa.
             </p>
           </div>
           <button
@@ -272,7 +270,7 @@ export const CreateSetScreen: React.FC<CreateSetScreenProps> = ({
             className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:opacity-50 rounded-xl transition-all whitespace-nowrap shrink-0 cursor-pointer"
           >
             <LogIn className="w-4 h-4" />
-            <span>{signingIn ? 'Đang đăng nhập...' : 'Đăng nhập Google'}</span>
+            <span>{signingIn ? 'Đang đăng nhập...' : 'Đăng nhập (tùy chọn)'}</span>
           </button>
         </div>
       )}
@@ -281,7 +279,11 @@ export const CreateSetScreen: React.FC<CreateSetScreenProps> = ({
         <div className="bg-white border border-indigo-100 rounded-2xl p-5 sm:p-6 space-y-4 shadow-xs">
           <div>
             <h1 className="font-display text-xl sm:text-2xl font-bold text-slate-900">
-              {editingSet ? 'Chỉnh sửa bộ câu hỏi' : 'Tạo bộ câu hỏi luyện nghe mới'}
+              {editingSet
+                ? 'Chỉnh sửa bộ câu hỏi'
+                : copyFrom
+                ? 'Tạo bản sao (link mới)'
+                : 'Tạo bộ câu hỏi luyện nghe mới'}
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
               Điền thông tin bộ bài tập và danh sách câu tiếng Anh. Lưu xong sẽ tạo ngay liên kết chia sẻ.
@@ -372,8 +374,10 @@ export const CreateSetScreen: React.FC<CreateSetScreenProps> = ({
                   desc: 'Chỉ mình bạn truy cập',
                   icon: <Lock className="w-4 h-4" />,
                 },
-              ].map((opt) => {
-                const active = visibility === opt.value;
+              ]
+                .filter((opt) => !isGuestSet || opt.value === 'unlisted')
+                .map((opt) => {
+                const active = isGuestSet || visibility === opt.value;
                 return (
                   <button
                     key={opt.value}
