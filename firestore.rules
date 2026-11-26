@@ -70,7 +70,6 @@ service cloud.firestore {
         data.visibility in ['public', 'unlisted', 'private'] &&
         data.ownerId is string &&
         isValidId(data.ownerId) &&
-        data.ownerId == request.auth.uid &&
         data.ownerName is string &&
         data.ownerName.size() >= 1 &&
         data.ownerName.size() <= 80 &&
@@ -105,16 +104,26 @@ service cloud.firestore {
       allow list: if existing().visibility == 'public' ||
         (isSignedIn() && existing().ownerId == request.auth.uid);
 
-      allow create: if isVerifiedUser() &&
-        isValidId(setId) &&
+      // Signed-in users own their sets. Guest sets are link-only, and anyone who
+      // knows a guest set's ID may update or delete it.
+      allow create: if isValidId(setId) &&
         isValidStudySet(incoming(), setId) &&
         incoming().createdAt == request.time &&
-        incoming().updatedAt == request.time;
+        incoming().updatedAt == request.time && (
+          (isVerifiedUser() && incoming().ownerId == request.auth.uid) ||
+          (!isSignedIn() &&
+            incoming().ownerId == 'guest' &&
+            incoming().ownerName == 'Khách' &&
+            incoming().visibility == 'unlisted')
+        );
 
-      allow update: if isVerifiedUser() &&
-        isValidId(setId) &&
-        isValidStudySet(incoming(), setId) &&
-        existing().ownerId == request.auth.uid &&
+      allow update: if isValidId(setId) &&
+        isValidStudySet(incoming(), setId) && (
+          (isVerifiedUser() && existing().ownerId == request.auth.uid) ||
+          (existing().ownerId == 'guest' &&
+            incoming().ownerName == 'Khách' &&
+            incoming().visibility == 'unlisted')
+        ) &&
         incoming().id == existing().id &&
         incoming().ownerId == existing().ownerId &&
         incoming().createdAt == existing().createdAt &&
@@ -135,9 +144,10 @@ service cloud.firestore {
           ])
         );
 
-      allow delete: if isVerifiedUser() &&
-        isValidId(setId) &&
-        existing().ownerId == request.auth.uid;
+      allow delete: if isValidId(setId) && (
+        (isVerifiedUser() && existing().ownerId == request.auth.uid) ||
+        existing().ownerId == 'guest'
+      );
     }
   }
 }
