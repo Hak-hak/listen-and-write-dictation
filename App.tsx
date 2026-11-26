@@ -67,6 +67,7 @@ export function App() {
   const [returnState, setReturnState] = useState<GameState>(GameState.TOPIC_SELECTION);
 
   const [editingSet, setEditingSet] = useState<StudySet | null>(null);
+  const [copySource, setCopySource] = useState<StudySet | null>(null);
   const [shareModalSet, setShareModalSet] = useState<StudySet | null>(null);
 
   const [sharedSet, setSharedSet] = useState<StudySet | null>(null);
@@ -222,14 +223,27 @@ export function App() {
     cancelSpeech();
     clearSetQueryParam();
     setEditingSet(null);
+    setCopySource(null);
     setGameState(GameState.CREATE_SET);
   }, [cancelSpeech, clearSetQueryParam]);
+
+  const handleCopySet = useCallback(
+    (set: StudySet) => {
+      cancelSpeech();
+      clearSetQueryParam();
+      setEditingSet(null);
+      setCopySource(set);
+      setGameState(GameState.CREATE_SET);
+    },
+    [cancelSpeech, clearSetQueryParam]
+  );
 
   const handleEditSet = useCallback(
     (set: StudySet) => {
       cancelSpeech();
       clearSetQueryParam();
       setEditingSet(set);
+      setCopySource(null);
       setGameState(GameState.CREATE_SET);
     },
     [cancelSpeech, clearSetQueryParam]
@@ -237,6 +251,7 @@ export function App() {
 
   const handleSetSaved = useCallback((savedSet: StudySet, isNew: boolean) => {
     setEditingSet(null);
+    setCopySource(null);
     setGameState(GameState.MY_SETS);
     if (isNew) {
       setShareModalSet(savedSet);
@@ -286,6 +301,7 @@ export function App() {
             onSignIn={handleSignIn}
             onCreateNew={handleOpenCreate}
             onEditSet={handleEditSet}
+            onCopySet={handleCopySet}
             onPlaySet={(set) => handlePlayStudySet(set, GameState.MY_SETS)}
             onShareSet={(set) => setShareModalSet(set)}
           />
@@ -301,13 +317,13 @@ export function App() {
       case GameState.CREATE_SET:
         return (
           <CreateSetScreen
+            key={editingSet?.id ?? copySource?.id ?? 'new'}
             user={user}
             editingSet={editingSet}
+            copyFrom={copySource}
             onSignIn={handleSignIn}
             onSaved={handleSetSaved}
-            onCancel={() =>
-              navigateTo(user ? GameState.MY_SETS : GameState.TOPIC_SELECTION)
-            }
+            onCancel={() => navigateTo(GameState.MY_SETS)}
           />
         );
       case GameState.SHARED_INTRO:
